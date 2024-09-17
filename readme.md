@@ -2,11 +2,11 @@
 
 This is an educational repository for using PINN for solving steady-state conservation equation including both conduction (diffusion) and convection terms. The partial differential equation (PDE) governing such problem is
 
-$$\vec{v} \cdot \nabla \theta = \nabla \left( \kappa \nabla \theta\right) &emsp; &emsp; &emsp; (1)$$
+$$\vec{v} \cdot \nabla \theta = \nabla \cdot \left( \kappa \nabla \theta\right) &emsp; &emsp; &emsp; (1)$$
 
 where $\vec{v}$ is the known velocity field, $\theta$ is the conserved dependent varaible depending on $\vec{x} = (x , y)$ and $\kappa$ is the diffusivity.
 
-To examine peroformance of PINN in solving (1), the solution obtained from PINN is compared to the one from theory as well as the FVM. One possible solution to (1) for constant $\vec{u}$ and $\kappa$ is:
+To examine performance of PINN in solving (1), the solution obtained from PINN is compared to the one from theory as well as the FVM. One possible solution to (1) for constant $\vec{u}$ and $\kappa$ is:
 
 $$\theta = A + B \ exp\left(\frac{\vec{u} \cdot \vec{x}}{\kappa}\right) &emsp; &emsp; &emsp; (2)$$
 
