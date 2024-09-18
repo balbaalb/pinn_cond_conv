@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.typing as npt
 import matplotlib.pyplot as plt
-from fvm_2d_grid import Grid
+from fvm.fvm_2d_grid import Grid
 from typing import Callable
 
 

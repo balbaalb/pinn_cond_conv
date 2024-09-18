@@ -2,16 +2,35 @@ import numpy as np
 import numpy.typing as npt
 import matplotlib.pyplot as plt
 from enum import Enum, auto
-from model import *
+from pinn.model import *
+
+"""
+Practice runs on various TVD Schemes in a one-dimensional grid of cells.
+References:
+    Versteeg, H.K., Malalasekera, W. 2007 An introduction to computational fluid dynamics: 
+        the finite volume method, 2/E. Pearson Education Limited. 
+    Patankar, S., 2018. Numerical heat transfer and fluid flow. CRC press.
+
+"""
 
 
 class TVD_TYPE(Enum):
+    """
+    Types of Total Variation Diminishing (TVD). Here only 3 types are explored.
+    """
+
     UPSREAM_FULL = auto()
     VAN_LEER = auto()
     VAN_ALABADA = auto()
 
 
 class Psi:
+    """
+    The TVD function.
+    Ref: Versteeg, H.K., Malalasekera, W. 2007
+    An introduction to computational fluid dynamics: the finite volume method, 2/E. Pearson Education Limited.
+    """
+
     def __init__(self, tvd_type: TVD_TYPE = TVD_TYPE.UPSREAM_FULL) -> None:
         self.tvd_type = tvd_type
 
@@ -24,6 +43,10 @@ class Psi:
 
 
 def grid_1d_cond():
+    """
+    Simple 1D conduction equation solving:
+    d^2u/dx^2 = 0
+    """
     plot = False
     k = 1  # does not matter
     Lx = 10
@@ -85,6 +108,23 @@ def grid_1d_conv_cond_solver(
     max_iter: int = 1,
     convergence_tolerance: float = 1.0e-5,
 ):
+    """
+    Solves the 1D conduction-convection equation.
+    Inputs:
+    -   k: coefficient of the diffusion term
+    -   vol_capacity: Volumetric capacity, coefficient of velocity in the convection term
+    -   u: constant Velocity
+    -   bc: (T0 ,T1) , Dirichlit boundary conditions at the 2 ends of the grid.
+    -   Lx: Length of the grid
+    -   Nx: Number of cells
+    -   use_patankar_coeff: if True, applies the function A(Pe) to the diffusion term.
+            Pe is the local Péclet number. Ref:
+            Patankar, S., 2018. Numerical heat transfer and fluid flow. CRC press.
+    -   tvd_type: TVD function type
+    -   max_iter: A bound on number of iterations
+    -   convergence_tolerance: Minimum acceptable convergence
+
+    """
     T0 = bc[0]
     T1 = bc[1]
     Dx = Lx / Nx  # cell size
@@ -166,8 +206,14 @@ def grid_1d_conv_cond_solver(
     return xc, T
 
 
-def grid_1d_cond_conv_upstream(tvd_type: TVD_TYPE = TVD_TYPE.UPSREAM_FULL):
-    plot = True
+def grid_1d_cond_conv_upstream(
+    tvd_type: TVD_TYPE = TVD_TYPE.UPSREAM_FULL, plot: bool = True
+):
+    """
+    Solves the 1D conduction-convection equation with a given TVD method with and without the Patankar's
+    diffusion coefficient (Patankar 2018) for a selected values of the Péclet numbers.
+    Ref: Patankar, S., 2018. Numerical heat transfer and fluid flow. CRC press.
+    """
     title = f"TVD = {tvd_type}\nwith and without Patankar multiplier for the diffusion term."
     k = 10
     rho = 1
@@ -667,12 +713,12 @@ if __name__ == "__main__":
     # grid_1d_cond_conv_upstream(tvd_type=TVD_TYPE.UPSREAM_FULL)
     # grid_1d_cond_conv_upstream(tvd_type=TVD_TYPE.VAN_ALABADA)
     # grid_1d_cond_conv_upstream(tvd_type=TVD_TYPE.VAN_LEER)
-    # grid_1d_cond_conv_full_upstream_various_Nx(tvd_type=TVD_TYPE.UPSREAM_FULL)
+    grid_1d_cond_conv_full_upstream_various_Nx(tvd_type=TVD_TYPE.UPSREAM_FULL)
     # grid_1d_cond_conv_full_upstream_various_Nx(tvd_type=TVD_TYPE.VAN_ALABADA)
     # grid_1d_cond_conv_full_upstream_various_Nx(tvd_type=TVD_TYPE.VAN_LEER)
     # pinn_1d_cond()
     # pinn_1d_cond_scaled()
     # pinn_1d_cond_conv()
-    pinn_1d_cond_conv_integral_eq()
+    # pinn_1d_cond_conv_integral_eq()
 
-# py -m FVM_PINN_workshop.fvm_1d
+# py -m fvm.fvm_1d

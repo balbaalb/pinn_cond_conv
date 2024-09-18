@@ -1,4 +1,4 @@
-from model import *
+from pinn.model import *
 
 
 def test_model_exp_function():

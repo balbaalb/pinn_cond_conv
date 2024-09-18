@@ -3,8 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 from pathlib import Path
-from model import *
-from pinn_2d_cond import gen_square_domain
+from pinn.model import *
+from pinn.pinn_2d_cond import gen_square_domain
 
 THIS_PATH = Path(__file__).parent.resolve()
 

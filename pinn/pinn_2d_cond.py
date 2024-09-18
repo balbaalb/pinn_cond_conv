@@ -1,4 +1,4 @@
-from model import *
+from pinn.model import *
 from typing import Callable
 import numpy as np
 import matplotlib.pyplot as plt

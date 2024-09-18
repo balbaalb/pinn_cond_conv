@@ -1,4 +1,4 @@
-from pinn_2d_cond import *
+from pinn.pinn_2d_cond import *
 from pytest import approx
 
 

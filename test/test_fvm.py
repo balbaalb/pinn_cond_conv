@@ -1,7 +1,7 @@
 from pytest import approx
-from fvm_1d import *
-from fvm_2d_grid import *
-from fvm_2d_triang import *
+from fvm.fvm_1d import *
+from fvm.fvm_2d_grid import *
+from fvm.fvm_2d_triang import *
 
 
 def test_Psi():
