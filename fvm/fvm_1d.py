@@ -278,13 +278,13 @@ def grid_1d_cond_conv_upstream(
             plt.scatter(
                 xc[0::sampling_size],
                 T[0][0::sampling_size],
-                label=f"T_FVM_upstream , Pe = {Pe}",
+                label=f"TVD type = {tvd_type} without Patankar's coeff, Pe = {Pe}",
                 marker="+",
             )
             plt.scatter(
                 xc[0::sampling_size],
                 T[1][0::sampling_size],
-                label=f"T_FVM_patankar, Pe = {Pe}",
+                label=f"TVD type = {tvd_type} with Patankar's coeff, Pe = {Pe}",
                 marker="x",
             )
             plt.legend()
@@ -294,11 +294,15 @@ def grid_1d_cond_conv_upstream(
             plt.show()
 
         for err_percent, Pe in zip(err_percent_list, Pe_list):
-            plt.plot(xc, err_percent[:, 0], label=f"T_FVM_upstream , Pe = {Pe}")
+            plt.plot(
+                xc,
+                err_percent[:, 0],
+                label=f"TVD type = {tvd_type} without Patankar's coeff, Pe = {Pe}",
+            )
             plt.plot(
                 xc,
                 err_percent[:, 1],
-                label=f"T_FVM_patankar , Pe = {Pe}",
+                label=f"TVD type = {tvd_type} with Patankar's coeff, Pe = {Pe}",
                 linestyle="dashed",
             )
         plt.legend()
@@ -322,10 +326,10 @@ def grid_1d_cond_conv_upstream(
         for i, (Pe, err_arr) in enumerate(zip(Pe_list, err_percent_list)):
             print(f"i = {i}")
             print(
-                f"np.max(err_arr[:, 0]) = {np.max(err_arr[:, 0])} , expected_upstream_eer_bounds[i][0] = {expected_upstream_eer_bounds[i][0]}"
+                f"np.max(err_arr[:, 0]) = {np.max(err_arr[:, 0])} , expected_VAN_ALABADA_err_bounds[i][0] = {expected_upstream_eer_bounds[i][0]}"
             )
             print(
-                f"np.max(err_arr[:, 1]) = {np.max(err_arr[:, 1])} , expected_upstream_eer_bounds[i][1] = {expected_upstream_eer_bounds[i][1]}"
+                f"np.max(err_arr[:, 1]) = {np.max(err_arr[:, 1])} , expected_VAN_ALABADA_err_bounds[i][1] = {expected_upstream_eer_bounds[i][1]}"
             )
             assert np.max(err_arr[:, 0]) < expected_upstream_eer_bounds[i][0]
             assert np.max(err_arr[:, 1]) < expected_upstream_eer_bounds[i][1]
@@ -340,10 +344,10 @@ def grid_1d_cond_conv_upstream(
         for i, (Pe, err_arr) in enumerate(zip(Pe_list, err_percent_list)):
             print(f"i = {i}")
             print(
-                f"np.max(err_arr[:, 0]) = {np.max(err_arr[:, 0])} , expected_upstream_eer_bounds[i][0] = {expected_upstream_eer_bounds[i][0]}"
+                f"np.max(err_arr[:, 0]) = {np.max(err_arr[:, 0])} , expected_VAN_LEER_err_bounds[i][0] = {expected_upstream_eer_bounds[i][0]}"
             )
             print(
-                f"np.max(err_arr[:, 1]) = {np.max(err_arr[:, 1])} , expected_upstream_eer_bounds[i][1] = {expected_upstream_eer_bounds[i][1]}"
+                f"np.max(err_arr[:, 1]) = {np.max(err_arr[:, 1])} , expected_VAN_LEER_err_bounds[i][1] = {expected_upstream_eer_bounds[i][1]}"
             )
             assert np.max(err_arr[:, 0]) < expected_upstream_eer_bounds[i][0]
             assert np.max(err_arr[:, 1]) < expected_upstream_eer_bounds[i][1]

@@ -1,6 +1,6 @@
 # Educational Conduction-Convection Equation Solving Using Physics-Informed Neural Networks (PINN) and Finite Volume Method (FVM)
 
-This is an educational repository for using PINN for solving steady-state conservation equation including both conduction (diffusion) and convection terms. The partial differential equation (PDE) governing such problem is
+This is an educational repository for a workshop on using PINN for solving steady-state conservation equation including both conduction (diffusion) and convection terms. The partial differential equation (PDE) governing such problem is
 
 $$\vec{v} \cdot \nabla \theta = \nabla \cdot \left( \kappa \nabla \theta\right) &emsp; &emsp; &emsp; (1)$$
 
