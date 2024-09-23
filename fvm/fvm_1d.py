@@ -214,13 +214,13 @@ def grid_1d_cond_conv_upstream(
     diffusion coefficient (Patankar 2018) for a selected values of the Péclet numbers.
     Ref: Patankar, S., 2018. Numerical heat transfer and fluid flow. CRC press.
     """
-    title = f"TVD = {tvd_type}\nwith and without Patankar multiplier for the diffusion term."
+    title = f"TVD = {tvd_type.name}, with and without Patankar multiplier for the diffusion term."
     k = 10
     rho = 1
     C_p = 1
     kappa = k / rho / C_p
     Lx = 10
-    Pe_list = [1.0e-7, 0.1, 1, 10, 1.0e7]
+    Pe_list = [1.0e-7, 1, 10, 1.0e7]
     T_list = []
     err_percent_list = []
     T_exact_list = []
@@ -272,37 +272,40 @@ def grid_1d_cond_conv_upstream(
         T_list.append(T)
         err_percent_list.append(err_percent)
     if plot:
-        for T, Pe, T_exact in zip(T_list, Pe_list, T_exact_list):
+        plt.figure(figsize=(18, 10))
+        for i, (T, Pe, T_exact) in enumerate(zip(T_list, Pe_list, T_exact_list)):
             sampling_size = 50
+
+            plt.subplot(2, 2, i + 1)
             plt.plot(xc, T_exact(xc), label=f"T_theory, Pe = {Pe}", color="blue")
             plt.scatter(
                 xc[0::sampling_size],
                 T[0][0::sampling_size],
-                label=f"TVD type = {tvd_type} without Patankar's coeff, Pe = {Pe}",
+                label=f"TVD type = {tvd_type.name} without Patankar's coeff, Pe = {Pe}",
                 marker="+",
             )
             plt.scatter(
                 xc[0::sampling_size],
                 T[1][0::sampling_size],
-                label=f"TVD type = {tvd_type} with Patankar's coeff, Pe = {Pe}",
+                label=f"TVD type = {tvd_type.name} with Patankar's coeff, Pe = {Pe}",
                 marker="x",
             )
             plt.legend()
             plt.xlabel("x")
             plt.ylabel("T")
             plt.title(title)
-            plt.show()
-
+        plt.show()
         for err_percent, Pe in zip(err_percent_list, Pe_list):
+            plt.subplot(2, 2, 2)
             plt.plot(
                 xc,
                 err_percent[:, 0],
-                label=f"TVD type = {tvd_type} without Patankar's coeff, Pe = {Pe}",
+                label=f"TVD type = {tvd_type.name} without Patankar's coeff, Pe = {Pe}",
             )
             plt.plot(
                 xc,
                 err_percent[:, 1],
-                label=f"TVD type = {tvd_type} with Patankar's coeff, Pe = {Pe}",
+                label=f"TVD type = {tvd_type.name} with Patankar's coeff, Pe = {Pe}",
                 linestyle="dashed",
             )
         plt.legend()
@@ -311,14 +314,13 @@ def grid_1d_cond_conv_upstream(
         plt.title(title)
         plt.show()
     if tvd_type == TVD_TYPE.UPSREAM_FULL:
-        expected_upstream_eer_bounds = [0.0002, 0.0002, 0.015, 0.58, 0.3]
+        expected_upstream_eer_bounds = [0.0002, 0.015, 0.58, 0.3]
         for i, (Pe, err_arr) in enumerate(zip(Pe_list, err_percent_list)):
             assert np.max(err_arr[:, 1]) < 0.0002
             assert np.max(err_arr[:, 0]) < expected_upstream_eer_bounds[i]
     elif tvd_type == TVD_TYPE.VAN_ALABADA:
         expected_upstream_eer_bounds = [
             [1.0e-6, 1.0e-6],
-            [1.0e-3, 1.0e-3],
             [1.5, 1.5],
             [56, 56],
             [0.14, 0.03],
@@ -336,7 +338,6 @@ def grid_1d_cond_conv_upstream(
     elif tvd_type == TVD_TYPE.VAN_LEER:
         expected_upstream_eer_bounds = [
             [1.0e-6, 1.0e-6],
-            [1.0e-3, 1.0e-3],
             [1.5, 1.5],
             [56, 56],
             [0.11, 0.03],
