@@ -272,40 +272,43 @@ def grid_1d_cond_conv_upstream(
         T_list.append(T)
         err_percent_list.append(err_percent)
     if plot:
-        plt.figure(figsize=(18, 10))
+        fig, ax = plt.subplots(2, 2)
+        fig.set_size_inches(w=10, h=8)
+        fig.suptitle(title)
+        # ii = [0,1,0,1]
+        jj = [0, 1, 0, 1]
         for i, (T, Pe, T_exact) in enumerate(zip(T_list, Pe_list, T_exact_list)):
             sampling_size = 50
-
-            plt.subplot(2, 2, i + 1)
-            plt.plot(xc, T_exact(xc), label=f"T_theory, Pe = {Pe}", color="blue")
-            plt.scatter(
+            ii = i // 2
+            jj = i % 2
+            ax[ii][jj].plot(xc, T_exact(xc), label=f"T_theory, Pe = {Pe}", color="blue")
+            ax[ii][jj].scatter(
                 xc[0::sampling_size],
                 T[0][0::sampling_size],
-                label=f"TVD type = {tvd_type.name} without Patankar's coeff, Pe = {Pe}",
+                label=f"Without Patankar's coeff, Pe = {Pe}",
                 marker="+",
             )
-            plt.scatter(
+            ax[ii][jj].scatter(
                 xc[0::sampling_size],
                 T[1][0::sampling_size],
-                label=f"TVD type = {tvd_type.name} with Patankar's coeff, Pe = {Pe}",
+                label=f"With Patankar's coeff, Pe = {Pe}",
                 marker="x",
             )
-            plt.legend()
-            plt.xlabel("x")
-            plt.ylabel("T")
-            plt.title(title)
+            ax[ii][jj].legend()
+            ax[ii][jj].set_xlabel("x")
+            ax[ii][jj].set_ylabel("T")
         plt.show()
+        plt.figure(figsize=(10, 4))
         for err_percent, Pe in zip(err_percent_list, Pe_list):
-            plt.subplot(2, 2, 2)
             plt.plot(
                 xc,
                 err_percent[:, 0],
-                label=f"TVD type = {tvd_type.name} without Patankar's coeff, Pe = {Pe}",
+                label=f"Without Patankar's coeff, Pe = {Pe}",
             )
             plt.plot(
                 xc,
                 err_percent[:, 1],
-                label=f"TVD type = {tvd_type.name} with Patankar's coeff, Pe = {Pe}",
+                label=f"With Patankar's coeff, Pe = {Pe}",
                 linestyle="dashed",
             )
         plt.legend()
