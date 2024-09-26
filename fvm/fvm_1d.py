@@ -362,70 +362,10 @@ def grid_1d_cond_conv_upstream(
     print(" ====== SUCCESS grid_1d_cond_conv_upstream ========= ")
 
 
-def grid_1d_cond_conv_full_upstream_various_Nx(
-    tvd_type: TVD_TYPE = TVD_TYPE.UPSREAM_FULL,
-):
-    """
-    Investigating the effect of number of cells for solving 1D conduction-convection
-    when using a TVD method that is specified in the input.
-    """
-    Nx_arr = [500, 1000]
-    k = 10
-    rho = 1
-    C_p = 1
-    kappa = k / rho / C_p
-    Lx = 10
-    Pe = 10
-    u = Pe * kappa / Lx
-    T0 = 1
-    T1 = 11
-    T_exact = lambda x: (
-        T0 + (T1 - T0) * (np.exp(Pe * (x / Lx - 1)) - np.exp(-Pe)) / (1 - np.exp(-Pe))
-        if Pe > 0
-        else (np.exp(Pe * (x / Lx)) - 1) / (np.exp(Pe) - 1) if Pe < 0 else x / Lx
-    )
-    assert T_exact(0) == T0
-    assert T_exact(Lx) == T1
-    x = np.linspace(0, Lx, 101)
-    T_exact_arr = T_exact(x)
-    plt.plot(x, T_exact_arr, label="T_theory")
-    for Nx in Nx_arr:
-        print(f"tvd_type = {tvd_type}, Nx = {Nx}")
-        xc, T = grid_1d_conv_cond_solver(
-            k=k,
-            vol_capacity=rho * C_p,
-            u=u,
-            bc=(T0, T1),
-            Lx=Lx,
-            Nx=Nx,
-            use_patankar_coeff=False,
-            tvd_type=tvd_type,
-            max_iter=1000,
-            convergence_tolerance=1.0e-3,
-        )
-        plt.scatter(
-            xc[:: int(Nx / 101)], T[:: int(Nx / 101)], label=f"Nx = {Nx}", marker="x"
-        )
-    plt.legend()
-    plt.title(f"tvd_type= {tvd_type}, Pe = {Pe}")
-    plt.show()
-    err_percent = np.fabs(T_exact(xc) - T) / T_exact(xc) * 100
-    max_err_percent = np.max(err_percent)
-    print(f"Nx = {Nx}, max_err_percent = {max_err_percent}")
-    plt.plot(xc, err_percent, label="error%")
-    plt.legend()
-    plt.title(f"tvd_type= {tvd_type}, Pe = {Pe}")
-    plt.show()
-    print(" ====== SUCCESS grid_1d_cond_conv_full_upstream_various_Nx ========= ")
-
-
 if __name__ == "__main__":
     grid_1d_cond()
     grid_1d_cond_conv_upstream(tvd_type=TVD_TYPE.UPSREAM_FULL)
     grid_1d_cond_conv_upstream(tvd_type=TVD_TYPE.VAN_ALABADA)
     grid_1d_cond_conv_upstream(tvd_type=TVD_TYPE.VAN_LEER)
-    grid_1d_cond_conv_full_upstream_various_Nx(tvd_type=TVD_TYPE.UPSREAM_FULL)
-    grid_1d_cond_conv_full_upstream_various_Nx(tvd_type=TVD_TYPE.VAN_ALABADA)
-    grid_1d_cond_conv_full_upstream_various_Nx(tvd_type=TVD_TYPE.VAN_LEER)
 
 # py -m fvm.fvm_1d
