@@ -5,6 +5,10 @@ from enum import Enum, auto
 
 
 class ACT_FUNCT_TYPE(Enum):
+    """
+    Enum class for activation type.
+    """
+
     RELU = auto()
     TANH = auto()
     EXP = auto()
@@ -37,6 +41,14 @@ class Model(nn.Module):
         return x
 
 
+class Exp(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, x):
+        return torch.exp(x)
+
+
 class SeqModel(nn.Sequential):
     def __init__(
         self,
@@ -56,6 +68,8 @@ class SeqModel(nn.Sequential):
                     self.add_module(name=str(i) + "-ReLU", module=nn.ReLU())
                 case ACT_FUNCT_TYPE.TANH:
                     self.add_module(name=str(i) + "-Tanh", module=nn.Tanh())
+                case ACT_FUNCT_TYPE.EXP:
+                    self.add_module(name=str(i) + "-Exp", module=Exp())
                 case _:
                     self.add_module(name=str(i) + "-Tanh", module=nn.Tanh())
             n_input = depth
