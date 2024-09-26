@@ -47,7 +47,7 @@ class Model(nn.Module):
 
 class Exp(nn.Module):
     """
-    Because torch.nn.funcation doesn't have an Exp() function, here one is created for the SeqModel class.
+    Because torch.nn.function doesn't have Exp(), here one is created to be used in the SeqModel class (implemeted below).
     """
 
     def __init__(self) -> None:

@@ -184,13 +184,13 @@ def pinn_1d_cond_conv():
                             / (1 - exp(-Pe))
     """
     Lx = 1.0
-    Pe = 10.0
+    Pe = 2.0
     T0 = 0.0
     T1 = 1.0
     title = "u dT/dx = k d^2T/dx^2, const k, T(0) = T0, T(Lx) = T1"
     title += f"\nT0 = {T0}, T1 = {T1}, Lx = {Lx}, Pe = {Pe}"
     # ===== PINN Parameters ==============
-    epochs = 100000
+    epochs = 10000
     lr = 0.0005
     depths = [64, 64, 64]
     N_train = 1001
@@ -255,88 +255,10 @@ def pinn_1d_cond_conv():
     plt.show()
 
 
-def pinn_1d_cond_conv_integral_eq():
-    Lx = 1.0
-    Pe = 10.0
-    T0 = 0.0
-    T1 = 1.0
-    title = "u dT/dx = kd^2T/dx^2, const k, T(0) = T0, T(Lx) = T1"
-    title += f"\nT0 = {T0}, T1 = {T1}, Lx = {Lx}, Pe = {Pe}"
-    # ===== PINN Parameters ==============
-    epochs = 10000
-    lr = 0.00001
-    depths = [64, 64, 64]
-    N_train = 1001
-    act_func_type = ACT_FUNCT_TYPE.EXP  # TANH loss was flattening at loss_ode = 0.22
-    title += f"\nepochs = {epochs}, lr = {lr}, depths = {depths}, N_train = {N_train}, sigma = {act_func_type}"
-    # =====================================
-    T_exact = lambda x: (
-        T0 + (T1 - T0) * (np.exp(Pe * (x / Lx - 1)) - np.exp(-Pe)) / (1 - np.exp(-Pe))
-        if Pe > 0
-        else (np.exp(Pe * (x / Lx)) - 1) / (np.exp(Pe) - 1) if Pe < 0 else x / Lx
-    )
-    assert T_exact(0) == T0
-    assert T_exact(Lx) == T1
-    hx = 0.5 / N_train
-    hx /= 1.0
-    x_cell = torch.linspace(hx, 1.0 - hx, N_train).reshape(-1, 1)
-    x_cell.requires_grad = True
-    x_e = x_cell + hx
-    x_w = x_cell - hx
-    torch.manual_seed(616)
-    model = Model(in_features=1, depths=depths, out_features=1)  # T = f(x)
-    model.set_act_func_type(act_func_type)
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
-    losses = []
-    x_bc = torch.FloatTensor([[0.0], [1.0]])
-    y_bc = torch.FloatTensor([[0.0], [1.0]])
-    for i in range(epochs):
-        y_pred_bc = model(x_bc)
-        loss_bc = criterion(y_pred_bc, y_bc)
-        y_e = model(x_e)
-        yx_e = torch.autograd.grad(
-            y_e, x_e, torch.ones_like(y_e), create_graph=True, retain_graph=True
-        )[0]
-        y_w = model(x_w)
-        yx_w = torch.autograd.grad(
-            y_w, x_w, torch.ones_like(y_w), create_graph=True, retain_graph=True
-        )[0]
-        residual = (Pe * y_e - yx_e) - (Pe * y_w - yx_w)
-        loss_integral = criterion(residual, torch.zeros_like(residual))
-        loss = loss_integral + loss_bc
-        losses.append(loss.item())
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        if (i + 1) % 100 == 0:
-            print(
-                f"Epoch = {i+1}   loss = {loss.item()} = {loss_integral.item()} + {loss_bc.item()}"
-            )
-    x0 = x_cell.detach().numpy() * Lx
-    y0 = T_exact(x0)
-    y_pred = model(x_cell)
-    theta_pred = y_pred.detach().numpy()
-    y_pred = theta_pred * (T1 - T0) + T0
-    plt.subplot(2, 1, 1)
-    plt.plot(x0, y0, label="Exact solution")
-    plt.plot(x0, y_pred, label="PINN", linestyle="dashed")
-    plt.xlabel("x")
-    plt.ylabel("T")
-    plt.title(title)
-    plt.legend()
-    plt.subplot(2, 1, 2)
-    plt.plot(losses)
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.yscale("log")
-    plt.show()
-
-
 if __name__ == "__main__":
     pinn_1d_cond()
     pinn_1d_cond_scaled()
     pinn_1d_cond_conv()
-    pinn_1d_cond_conv_integral_eq()
+
 
 # py -m pinn.pinn_1d
