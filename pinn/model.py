@@ -15,6 +15,10 @@ class ACT_FUNCT_TYPE(Enum):
 
 
 class Model(nn.Module):
+    """
+    A standard torch fully connected feed forward neural network model class.
+    """
+
     def __init__(self, in_features=1, depths=[], out_features=1) -> None:
         super().__init__()
         self.layers = []
@@ -42,6 +46,10 @@ class Model(nn.Module):
 
 
 class Exp(nn.Module):
+    """
+    Because torch.nn.funcation doesn't have an Exp() function, here one is created for the SeqModel class.
+    """
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -50,6 +58,13 @@ class Exp(nn.Module):
 
 
 class SeqModel(nn.Sequential):
+    """
+    Creating a fully connected feed forward neural network inherited from torch.nn.Sequential.
+    Although in theory this class should be behaving in the same exact manner as nn.Module; however,
+    it is observed that model classes inherited from nn.Sequential are optimized faster compared to the
+    ones inhertited from nn.Module.
+    """
+
     def __init__(
         self,
         in_features=1,
@@ -79,18 +94,3 @@ class SeqModel(nn.Sequential):
 
     def forward(self, input):
         return super().forward(input)
-
-
-class PINN_2_N_N_1(nn.Module):
-    def __init__(self, N: int = 64) -> None:
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(2, N),
-            nn.Tanh(),
-            nn.Linear(N, N),
-            nn.Tanh(),
-            nn.Linear(N, 1),
-        )
-
-    def forward(self, x):
-        return self.net(x)
