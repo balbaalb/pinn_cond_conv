@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import numpy.typing as npt
 from typing import Callable
+from scipy.sparse.linalg import gmres
+from scipy.sparse import csc_matrix
+import time
 
 """
 Practice runs on various Finite Volume Method (FVM) in a two-dimensional rectangular Cartesian grid.
@@ -213,7 +216,11 @@ def fvm_2d_grid_solver(
 
         K[i_cell, i_cell] = aP
         B[i_cell] += b
-    phi = np.linalg.solve(K, B)
+    K_sparse = csc_matrix(K)
+    phi, exit_code = gmres(K_sparse, B, rtol=1.0e-6)
+    if exit_code:
+        print(f"GMRES exit_code = {exit_code}, so we have to use numpy's solve.")
+        phi = np.linalg.solve(K, B)
     return phi, grid
 
 
@@ -262,8 +269,9 @@ def fvm_2d_grid_cond_conv():
     k = 1.0  # conductvity
     u_theta = np.deg2rad(63.5)
     Pe_list = [100, 200, 500, 1000]
-    N_list = np.arange(5, 101, 5)
+    N_list = np.arange(2, 101, 2)
     max_error = np.zeros((len(N_list), len(Pe_list)))
+    start_time = time.time()
     for p, Pe in enumerate(Pe_list):
         u_mag = Pe * k / Lx
         u = lambda x, y: (u_mag * np.cos(u_theta), u_mag * np.sin(u_theta))
@@ -294,6 +302,8 @@ def fvm_2d_grid_cond_conv():
             )
             max_error[i, p] = np.max(error)
         plt.plot(N_list, max_error[:, p], label=f"Pe = {Pe}")
+    end_time = time.time()
+    print(f"cond-conv: dt = {end_time - start_time} s, max_err = {np.max(max_error)} %")
     plt.xlabel("grid size")
     plt.ylabel("max error %")
     plt.title("Max error% for the conduction-convection equation on a Cartesian grid.")
