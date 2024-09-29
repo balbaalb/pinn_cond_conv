@@ -150,17 +150,14 @@ def test_fvm_2d_grid_solver_conv():
     Lx = 10
     Ly = 10
     k = 1.0  # conductvity
-    rho = 1.0
-    Cp = 1.0
-    kappa = k / rho / Cp
     u_mag = 1.0
     u_theta = np.deg2rad(63.5)
     u = lambda x, y: (u_mag * np.cos(u_theta), u_mag * np.sin(u_theta))
     T0 = 1.0
     T1 = 2.0
-    arg_max = u_mag * (Lx * np.cos(u_theta) + Ly * np.sin(u_theta)) / kappa
+    arg_max = u_mag * (Lx * np.cos(u_theta) + Ly * np.sin(u_theta)) / k
     T_theory = lambda x, y: T0 + T1 * np.exp(
-        u_mag * (x * np.cos(u_theta) + y * np.sin(u_theta)) / kappa - arg_max
+        u_mag * (x * np.cos(u_theta) + y * np.sin(u_theta)) / k - arg_max
     )
     N = 60
     T, grid = fvm_2d_grid_solver(
@@ -171,7 +168,6 @@ def test_fvm_2d_grid_solver_conv():
         k=k,
         bc=T_theory,
         u=u,
-        vol_cap=rho * Cp,
         use_patankar_A=False,
     )
     error = np.zeros_like(T)
@@ -188,7 +184,6 @@ def test_fvm_2d_grid_solver_conv():
         k=k,
         bc=T_theory,
         u=u,
-        vol_cap=rho * Cp,
         use_patankar_A=True,
     )
     error = np.zeros_like(T)
