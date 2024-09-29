@@ -34,7 +34,7 @@ def pinn_1d_cond():
     depths = [64, 64, 64]
     N_train = 1001
     act_func_type = ACT_FUNCT_TYPE.TANH
-    title += f"\nepochs = {epochs}, lr = {lr}, depths = {depths}, N_train = {N_train}, sigma = {act_func_type}"
+    title += f"\nepochs = {epochs}, lr = {lr}, depths = {depths}, N_train = {N_train}, sigma = {act_func_type.name}"
     # ======================
     C1 = (T1 - T0) / Lx + q / 2 / k * Lx
     x0 = np.linspace(0.0, Lx, 1001)
@@ -68,8 +68,9 @@ def pinn_1d_cond():
         optimizer.step()
         if (i + 1) % 100 == 0:
             print(
-                f"Epoch = {i+1}   loss = {loss.item()} = {loss_bc.item()} + {loss_ode.item()}"
+                f"Epoch = {i+1}   loss = {loss.item()} = {loss_bc.item()} (bc loss) + {loss_ode.item()} (ode loss)"
             )
+    plt.figure(figsize=(10, 8))
     plt.subplot(2, 1, 1)
     plt.plot(x0, y0, label="exact solution")
     plt.plot(
@@ -89,7 +90,7 @@ def pinn_1d_cond():
 
 def pinn_1d_cond_scaled():
     """
-    Does the same thing as pinn_1d_cond() (above) but without
+    This function does the same thing as pinn_1d_cond() (above) but without
     constarining boundary condition and thus the solution to remain
     between 0 and 1.
     Equation:
@@ -111,7 +112,7 @@ def pinn_1d_cond_scaled():
     depths = [64, 64, 64]
     N_train = 1001
     act_func_type = ACT_FUNCT_TYPE.TANH
-    title += f"\nepochs = {epochs}, lr = {lr}, depths = {depths}, N_train = {N_train}, sigma = {act_func_type}"
+    title += f"\nepochs = {epochs}, lr = {lr}, depths = {depths}, N_train = {N_train}, sigma = {act_func_type.name}"
     # =========================================
     C1 = (T1 - T0) / Lx + q / 2 / k * Lx
     x0 = np.linspace(0.0, Lx, 1001)
@@ -153,10 +154,11 @@ def pinn_1d_cond_scaled():
         optimizer.step()
         if (i + 1) % 100 == 0:
             print(
-                f"Epoch = {i+1}   loss = {loss.item()} = {loss_bc.item()} + {loss_ode.item()}"
+                f"Epoch = {i+1}   loss = {loss.item()} = {loss_bc.item()} (bc loss) + {loss_ode.item()} (ode loss)"
             )
     x = X * Lx
     y_pred = theta_pred * (T1 - T0) + T0
+    plt.figure(figsize=(10, 8))
     plt.subplot(2, 1, 1)
     plt.plot(x0, y0, label="exact solution")
     plt.plot(
@@ -195,7 +197,7 @@ def pinn_1d_cond_conv():
     depths = [64, 64, 64]
     N_train = 1001
     act_func_type = ACT_FUNCT_TYPE.EXP  # TANH loss was flattening at loss_ode = 0.22
-    title += f"\nepochs = {epochs}, lr = {lr}, depths = {depths}, N_train = {N_train}, sigma = {act_func_type}"
+    title += f"\nepochs = {epochs}, lr = {lr}, depths = {depths}, N_train = {N_train}, sigma = {act_func_type.name}"
     # =====================================
     T_exact = lambda x: (
         T0 + (T1 - T0) * (np.exp(Pe * (x / Lx - 1)) - np.exp(-Pe)) / (1 - np.exp(-Pe))
@@ -234,12 +236,13 @@ def pinn_1d_cond_conv():
         optimizer.step()
         if (i + 1) % 100 == 0:
             print(
-                f"Epoch = {i+1}   loss = {loss.item()} = {loss_ode.item()} + {loss_bc.item()}"
+                f"Epoch = {i+1}   loss = {loss.item()} = {loss_bc.item()} (bc loss) + {loss_ode.item()} (ode loss)"
             )
     x0 = x.detach().numpy() * Lx
     y0 = T_exact(x0)
     theta_pred = y_pred.detach().numpy()
     y_pred = theta_pred * (T1 - T0) + T0
+    plt.figure(figsize=(10, 8))
     plt.subplot(2, 1, 1)
     plt.plot(x0, y0, label="Exact solution")
     plt.plot(x0, y_pred, label="PINN", linestyle="dashed")
