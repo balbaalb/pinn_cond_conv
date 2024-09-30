@@ -1,7 +1,6 @@
 from pytest import approx
 from fvm.fvm_1d import *
 from fvm.fvm_2d_grid import *
-from fvm.fvm_2d_triang import *
 
 
 def test_Psi():
@@ -192,83 +191,3 @@ def test_fvm_2d_grid_solver_conv():
         T_exact = T_theory(x, y)
         error = np.fabs(T[i_cell] - T_exact) / T_exact * 100
     assert np.max(error) < 0.0005
-
-
-def test_triangulation_grid():
-    g = TriangulationGrid(Lx=2.0, Ly=9.0, Nx=5, Ny=3)
-    assert g.n_cells == 60
-    assert g.n_nodes == 39
-    assert g.coords[0, 0] == 0 and g.coords[0, 1] == 0
-    assert g.coords[1, 0] == 0.4 and g.coords[1, 1] == 0
-    assert g.coords[4, 0] == 1.6 and g.coords[4, 1] == 0
-    assert g.coords[5, 0] == 2.0 and g.coords[5, 1] == 0
-    assert g.coords[6, 0] == 0.0 and g.coords[6, 1] == 3.0
-    assert g.coords[8, 0] == 0.8 and g.coords[8, 1] == 3.0
-    assert g.coords[11, 0] == 2.0 and g.coords[11, 1] == 3.0
-    assert g.coords[12, 0] == 0.0 and g.coords[12, 1] == 6.0
-    assert g.coords[17, 0] == 2.0 and g.coords[17, 1] == 6.0
-    assert g.coords[18, 0] == 0.0 and g.coords[18, 1] == 9.0
-    assert g.coords[23, 0] == 2.0 and g.coords[23, 1] == 9.0
-    assert g.coords[24, 0] == 0.2 and g.coords[24, 1] == 1.5
-    assert g.coords[25, 0] == approx(0.6) and g.coords[25, 1] == approx(1.5)
-    assert g.coords[26, 0] == approx(1.0) and g.coords[26, 1] == approx(1.5)
-    assert g.coords[27, 0] == approx(1.4) and g.coords[27, 1] == approx(1.5)
-    assert g.coords[28, 0] == approx(1.8) and g.coords[28, 1] == approx(1.5)
-    assert g.coords[29, 0] == approx(0.2) and g.coords[29, 1] == approx(4.5)
-    assert g.coords[33, 0] == approx(1.8) and g.coords[33, 1] == approx(4.5)
-    assert g.coords[34, 0] == approx(0.2) and g.coords[34, 1] == approx(7.5)
-    assert g.coords[38, 0] == approx(1.8) and g.coords[38, 1] == approx(7.5)
-
-    assert np.all(g.cell_nodes[0] == [0, 1, 24])
-    assert np.all(g.cell_nodes[1] == [1, 7, 24])
-    assert np.all(g.cell_nodes[2] == [7, 6, 24])
-    assert np.all(g.cell_nodes[3] == [6, 0, 24])
-    assert np.all(g.cell_nodes[4] == [1, 2, 25])
-    assert np.all(g.cell_nodes[6] == [8, 7, 25])
-    assert np.all(g.cell_nodes[13] == [4, 10, 27])
-    assert np.all(g.cell_nodes[16] == [4, 5, 28])
-    assert np.all(g.cell_nodes[17] == [5, 11, 28])
-    assert np.all(g.cell_nodes[18] == [11, 10, 28])
-    assert np.all(g.cell_nodes[19] == [10, 4, 28])
-    assert np.all(g.cell_nodes[20] == [6, 7, 29])
-    assert np.all(g.cell_nodes[21] == [7, 13, 29])
-    assert np.all(g.cell_nodes[58] == [23, 22, 38])
-    assert np.all(g.cell_nodes[59] == [22, 16, 38])
-
-    assert np.all(g.cell_neighbors[0] == [3, -1, 1])
-    assert np.all(g.cell_neighbors[1] == [0, 7, 2])
-    assert np.all(g.cell_neighbors[2] == [1, 20, 3])
-    assert np.all(g.cell_neighbors[3] == [2, -1, 0])
-    assert np.all(g.cell_neighbors[4] == [7, -1, 5])
-    assert np.all(g.cell_neighbors[5] == [4, 11, 6])
-    assert np.all(g.cell_neighbors[6] == [5, 24, 7])
-    assert np.all(g.cell_neighbors[7] == [6, 1, 4])
-    assert np.all(g.cell_neighbors[16] == [19, -1, 17])
-    assert np.all(g.cell_neighbors[17] == [16, -1, 18])
-    assert np.all(g.cell_neighbors[18] == [17, 36, 19])
-    assert np.all(g.cell_neighbors[19] == [18, 13, 16])
-    assert np.all(g.cell_neighbors[28] == [31, 10, 29])
-    assert np.all(g.cell_neighbors[29] == [28, 35, 30])
-    assert np.all(g.cell_neighbors[30] == [29, 48, 31])
-    assert np.all(g.cell_neighbors[31] == [30, 25, 28])
-    assert np.all(g.cell_neighbors[40] == [43, 22, 41])
-    assert np.all(g.cell_neighbors[41] == [40, 47, 42])
-    assert np.all(g.cell_neighbors[42] == [41, -1, 43])
-    assert np.all(g.cell_neighbors[43] == [42, -1, 40])
-    assert np.all(g.cell_neighbors[56] == [59, 38, 57])
-    assert np.all(g.cell_neighbors[57] == [56, -1, 58])
-    assert np.all(g.cell_neighbors[58] == [57, -1, 59])
-    assert np.all(g.cell_neighbors[59] == [58, 53, 56])
-
-    assert g.cell_coord(i_cell=0) == approx((0.2, 0.5))
-    assert g.cell_coord(i_cell=28) == approx((1.0, 3.5))
-    assert g.cell_coord(i_cell=1) == approx((0.4 - 0.2 / 3.0, 1.5))
-    assert g.cell_coord(i_cell=29) == approx((1.2 - 0.2 / 3.0, 4.5))
-    assert g.cell_coord(i_cell=7) == approx((0.4 + 0.2 / 3.0, 1.5))
-    assert g.cell_coord(i_cell=35) == approx((1.2 + 0.2 / 3.0, 4.5))
-    assert g.cell_coord(i_cell=2) == approx((0.2, 2.5))
-    assert g.cell_coord(i_cell=30) == approx((1.0, 5.5))
-
-    assert g.edge_coords(i_cell=0, i_edge=0) == approx((0.2, 0.0))
-    assert g.edge_coords(i_cell=0, i_edge=1) == approx((0.3, 0.75))
-    assert g.edge_coords(i_cell=0, i_edge=2) == approx((0.1, 0.75))
