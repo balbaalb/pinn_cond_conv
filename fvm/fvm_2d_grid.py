@@ -139,7 +139,7 @@ def fvm_2d_grid_solver(
     """
     Solves the Conduction-Convection problem,
 
-    c u ⋅ ∇φ = k Δφ,
+    u ⋅ ∇φ = k Δφ,
 
     On a reactangular Cartesian grid. Here ∇ is the gradient operator, Δ the Laplacian operator, k the diffusivity,
     and φ is the conserved quantity. c is a multiplier (0 or 1 values only) for the convective term to
@@ -152,7 +152,8 @@ def fvm_2d_grid_solver(
     k: Conductivity
     bc: A function of (x,y) returning the value of Dirischlit boundary condition on
         any point on the boundary of the grid.
-    vol_cap: Volumetric capacity: a multiplier for the convection term.
+
+    u: (ux , uy) 2D velocity field. if u = None, the convective term is ignored.
     use_patankar_A : A flag to apply the Patankar's coefficient on the diffusion term.
     """
     grid = Grid(Lx=Lx, Ly=Ly, Nx=Nx, Ny=Ny)
@@ -233,6 +234,10 @@ def fvm_2d_grid_cond():
 
     on a 2D Cartesian grid. Here Δ is the Laplacian operator, k is diffusivity,
     and φ is the conserved quanity.
+
+    Here the Dirichlet boundary conditions enforced are:
+
+    φ(x,y| (x,y) ∈ domain boundary) = φ0 + φ1 sin(αx + β) * exp(-αy + β)
     """
     Lx = 10
     Ly = 10
@@ -264,6 +269,21 @@ def fvm_2d_grid_cond():
 
 
 def fvm_2d_grid_cond_conv():
+    """
+    An experiment on the relation between grid resolution and
+    the FVM error% for the conduction only conservation equation,
+
+    u ⋅ ∇φ = k Δφ,
+
+    on a 2D Cartesian grid. Here Δ is the Laplacian operator, k is diffusivity,
+    and φ is the conserved quanity, ∇ is the graident operator and u is the 2D velocity field.
+
+    Here the Dirichlet boundary conditions enforced are:
+
+    φ(x,y| (x,y) ∈ domain boundary) = φ0 + φ1 exp((x * ux + y * uy) / k - argmax)
+
+    where argmax = (Lx * ux + Ly * uy) / k.
+    """
     Lx = 10
     Ly = 10
     k = 1.0  # conductvity
