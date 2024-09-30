@@ -235,7 +235,7 @@ def fvm_2d_grid_cond():
     on a 2D Cartesian grid. Here Δ is the Laplacian operator, k is diffusivity,
     and φ is the conserved quanity.
 
-    Here the Dirichlet boundary conditions enforced are:
+    The following Dirichlet boundary condition is enforced:
 
     φ(x,y| (x,y) ∈ domain boundary) = φ0 + φ1 sin(αx + β) * exp(-αy + β)
     """
@@ -278,7 +278,7 @@ def fvm_2d_grid_cond_conv():
     on a 2D Cartesian grid. Here Δ is the Laplacian operator, k is diffusivity,
     and φ is the conserved quanity, ∇ is the graident operator and u is the 2D velocity field.
 
-    Here the Dirichlet boundary conditions enforced are:
+    The following Dirichlet boundary condition is enforced:
 
     φ(x,y| (x,y) ∈ domain boundary) = φ0 + φ1 exp((x * ux + y * uy) / k - argmax)
 
