@@ -7,7 +7,7 @@ from scipy.sparse import csc_matrix
 import time
 
 """
-Practice runs on various Finite Volume Method (FVM) in a two-dimensional rectangular Cartesian grid.
+Practice runs on Finite Volume Method (FVM) in a two-dimensional rectangular Cartesian grid.
 References:
     Versteeg, H.K., Malalasekera, W. 2007 An introduction to computational fluid dynamics: 
         the finite volume method, 2/E. Pearson Education Limited. 

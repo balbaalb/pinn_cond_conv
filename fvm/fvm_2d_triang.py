@@ -4,9 +4,29 @@ import matplotlib.pyplot as plt
 from fvm.fvm_2d_grid import Grid
 from typing import Callable
 
+"""
+Practice runs on Finite Volume Method (FVM) in a two-dimensional rectangular Cartesian grid.
+References:
+    Versteeg, H.K., Malalasekera, W. 2007 An introduction to computational fluid dynamics: 
+        the finite volume method, 2/E. Pearson Education Limited. 
+    Patankar, S., 2018. Numerical heat transfer and fluid flow. CRC press.
+
+"""
+
 
 class TriangulationGrid:
-    def set_grid_coords(self) -> None:
+    """
+    This class generates and manages a structured triangulation on rectangular grid of side lengths Lx and Ly.
+    The recrangular domian is divided into Nx Ny blocks, with Nx and Ny denoting number of blocks in the horizontal
+    and vertical directions, respectively. Each block contains 4 triangles by placing a node on the centre of the
+    block and connecting that node to 4 vertices of the block. For example, Nx = 5 and Ny = 3 means a triangulation with
+    number of vertices, Nv = 60, number of triangles, Nt = 39 (number of faces, Nf = 40), and number of edges, Ne = 98.
+    """
+
+    def __set_node_coords(self) -> None:
+        """
+        Should be used internally. Generates nodes (vertices) coordinates.
+        """
         for i_node in range((self.Nx + 1) * (self.Ny + 1)):
             self.coords[i_node, 0] = i_node % (self.Nx + 1) * self.hx
             self.coords[i_node, 1] = int(i_node / (self.Nx + 1)) * self.hy
@@ -17,7 +37,10 @@ class TriangulationGrid:
             self.coords[i_node, 0] = (px + gn % (self.Nx)) * self.hx
             self.coords[i_node, 1] = (py + int(gn / (self.Nx))) * self.hy
 
-    def set_cell_nodes(self) -> None:
+    def __set_cell_nodes(self) -> None:
+        """
+        Should be used internally. Generates list nodes (vertices) for each of cell (triangle).
+        """
         for gn in range(self.Nx * self.Ny):
             j = int(gn / self.Nx)
             a = gn + j
@@ -30,7 +53,10 @@ class TriangulationGrid:
             self.cell_nodes[gn * 4 + 2, :] = [c, d, f]
             self.cell_nodes[gn * 4 + 3, :] = [d, a, f]
 
-    def set_neighbors(self):
+    def __set_neighbors(self):
+        """
+        Should be used internally. Generates list neighboring cells (triangles) for each cell.
+        """
         sq_grid = Grid(Lx=0, Ly=0, Nx=self.Nx, Ny=self.Ny)
         for gn in range(self.Nx * self.Ny):
             self.cell_neighbors[gn * 4, 1] = (
@@ -50,6 +76,12 @@ class TriangulationGrid:
                 self.cell_neighbors[gn * 4 + i, 2] = gn * 4 + (i + 1) % 4
 
     def __init__(self, Lx: float, Ly: float, Nx: int, Ny: int) -> None:
+        """
+        Lx: Horizontal length of the rectangular domain.
+        Ly: Vertical length of the rectangular domain.
+        Nx: Number of horizontal blocks.
+        Ny: Number of vertical blocks.
+        """
         self.Nx: int = Nx
         self.Ny: int = Ny
         self.Lx: float = Lx
@@ -59,15 +91,18 @@ class TriangulationGrid:
         self.hx: float = Lx / Nx
         self.hy: float = Ly / Ny
         self.coords = np.zeros((self.n_nodes, 2), dtype=float)
-        self.set_grid_coords()
+        self.__set_node_coords()
         self.cell_nodes = np.zeros((self.n_cells, 3), dtype=int)
-        self.set_cell_nodes()
+        self.__set_cell_nodes()
         self.cell_neighbors = np.zeros(
             (self.n_cells, 3), dtype=int
         )  # Left , base, right neighboring cell indices
-        self.set_neighbors()
+        self.__set_neighbors()
 
     def cell_coord(self, i_cell: int) -> tuple[float, float]:
+        """
+        Return (x, y) coordinates of the geometrical centre of cell # i_cell
+        """
         cn = [self.cell_nodes[i_cell, i] for i in range(3)]
         r = np.zeros(2, dtype=float)
         for i in range(3):
@@ -75,21 +110,16 @@ class TriangulationGrid:
         return r[0], r[1]
 
     def edge_coords(self, i_cell: int, i_edge: int) -> tuple[float, float]:
+        """
+        Returns the mid-point coordinates of edge # i_edge for cell # i_cell.
+        i_edge can be 0, 1, 2.
+        """
         en = [
             self.cell_nodes[i_cell, i_edge],
             self.cell_nodes[i_cell, (i_edge + 1) % 3],
         ]
         r = 0.5 * self.coords[en[0], :] + 0.5 * self.coords[en[1], :]
         return r[0], r[1]
-
-    def base_edge_coords(self, i_cell: int) -> tuple[float, float]:
-        return self.edge_coords(i_cell=i_cell, i_edge=0)
-
-    def left_edge_coords(self, i_cell: int) -> tuple[float, float]:
-        return self.edge_coords(i_cell=i_cell, i_edge=2)
-
-    def right_edge_coords(self, i_cell: int) -> tuple[float, float]:
-        return self.edge_coords(i_cell=i_cell, i_edge=1)
 
 
 def fvm_2d_triang_grid_solver(
