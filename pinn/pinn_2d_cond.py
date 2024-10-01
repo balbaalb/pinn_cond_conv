@@ -5,6 +5,23 @@ import matplotlib.pyplot as plt
 import time
 from pathlib import Path
 
+"""
+Practice runs on physics-informed neural networks (PINN) for solving conduction only 
+conservation equtaion in a 2D rectangular domain.
+
+Refs: 
+    Raissi, M., Perdikaris, P. and Karniadakis, G.E., 2019. Physics-informed neural networks: 
+    A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations. 
+    Journal of Computational physics, 378, pp.686-707.
+
+    Cai, S., Wang, Z., Wang, S., Perdikaris, P. and Karniadakis, G.E., 2021. 
+    Physics-informed neural networks for heat transfer problems. Journal of Heat Transfer, 143(6), p.060801.
+
+    Cai, Z., Chen, J. and Liu, M., 2021. Least-squares ReLU neural network (LSNN) 
+    method for linear advection-reaction equation. Journal of Computational Physics, 443, p.110514.
+"""
+
+
 THIS_PATH = Path(__file__).parent.resolve()
 
 
@@ -14,7 +31,28 @@ def gen_square_domain(
     Nx: int,
     Ny: int,
     boundary_value: Callable[[float, float], float] = None,
-):
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Generates PyTorch domain nodes and boundary condition training data for a PINN for a
+    rectangular domain.
+    Inputs:
+        - Lx: Horizontal side length of the rectangular domain
+        - Ly: Vertical side length of the rectangular domain
+        - Nx: Number of nodes on a horizntal row of nodes
+        - Ny: Number of nodes on a vertical column of nodes
+        - boundary_value: a function (x ,y) returning the Dirichlet boundary condition on the
+            boundary node (x, y). This function should be numpy based.
+    Outputs: (X, Y, XY, XY_boundary, phi_boundary)
+        - X: A torch tensor with shape (Nx * Ny , 1) containing x coordinate of domain nodes
+        - Y: A torch tensor with shape (Nx * Ny , 1) containing y coordinate of domain nodes
+        - XY: A torch tensor with shape (Nx * Ny , 2) containing (x,y) coordinate of domain nodes,
+            this is just X and Y outputs concatenated.
+        - XY_boundary: A torch tensor with shape (2 * Nx + 2 * Ny , 2) containing (x , y) coordinate
+            of boundary
+        - phi_boundary: A torch tensor with shape (2 * Nx + 2 * Ny , 1) containing Dirichlet boundary
+            condition values for points in XY_boundary.
+
+    """
     x = np.linspace(0.0, Lx, Nx)
     y = np.linspace(0.0, Ly, Ny)
     xx = np.repeat(x, Ny)
@@ -39,21 +77,34 @@ def gen_square_domain(
     XY_boundary = torch.FloatTensor(xy_boundary)
     if boundary_value is None:
         return X, Y, XY, XY_boundary
-    T_boundary_np = boundary_value(x_boundary, y_boundary)
-    T_boundary = torch.FloatTensor(T_boundary_np)
-    return X, Y, XY, XY_boundary, T_boundary
+    phi_boundary_np = boundary_value(x_boundary, y_boundary)
+    phi_boundary = torch.FloatTensor(phi_boundary_np)
+    return X, Y, XY, XY_boundary, phi_boundary
 
 
-class Model_TXY1(nn.Module):
-    # provides T(x,y) = T0 + T1 * sin(alpha_x * x + beta_x) * exp(alpha_y * y + beta_y)
+class Model_Phi_XY1(nn.Module):
+    """
+    provides a feed forward neural network that gets (x, y) coordintaes
+    and outputs
+
+    φ(x,y) = φ0 + φ1 * sin(alpha_x * x + beta_x) * exp(alpha_y * y + beta_y)
+
+    This is used for testing the PINN solver training method.
+
+    Note that if alpha_x = ± alpha_y, then
+
+    ΔT = ∂^2T/∂x^2 + ∂^2T/∂y^2 = 0.
+
+    """
+
     def __init__(
         self,
         alpha_x: float = 1,
         beta_x: float = 0,
         alpha_y: float = -1,
         beta_y: float = 0,
-        T0: float = 0,
-        T1: float = 1,
+        phi0: float = 0,
+        phi1: float = 1,
     ) -> None:
         super().__init__()
         alpha_x *= np.pi
@@ -65,8 +116,8 @@ class Model_TXY1(nn.Module):
         self.nx.bias = nn.Parameter(torch.FloatTensor([beta_x]))
         self.ny.weight = nn.Parameter(torch.FloatTensor([[0, alpha_y]]))
         self.ny.bias = nn.Parameter(torch.FloatTensor([beta_y]))
-        self.out.weight = nn.Parameter(torch.FloatTensor([[[T1]]]))
-        self.out.bias = nn.Parameter(torch.FloatTensor([T0]))
+        self.out.weight = nn.Parameter(torch.FloatTensor([[[phi1]]]))
+        self.out.bias = nn.Parameter(torch.FloatTensor([phi0]))
 
     def forward(self, x):
         zx = torch.sin(self.nx(x))
@@ -74,19 +125,30 @@ class Model_TXY1(nn.Module):
         return self.out(zx, zy)
 
 
-class Txy1:
+class Phi_xy1:
+    """
+    A functor for the function
+
+    φ(x,y) = φ0 + φ1 * sin(alpha_x * x + beta_x) * exp(alpha_y * y + beta_y)
+
+    Note that if alpha_x = ± alpha_y, then
+
+    Δφ = ∂^2φ/∂x^2 + ∂^2φ/∂y^2 = 0.
+
+    """
+
     def __init__(
         self,
-        T0: float,
-        T1: float,
+        phi0: float,
+        phi1: float,
         alpha_x: float,
         alpha_y: float,
         beta_x: float,
         beta_y: float,
         numpy_based: bool = True,
     ) -> None:
-        self.T0 = T0
-        self.T1 = T1
+        self.phi0 = phi0
+        self.phi1 = phi1
         self.alpha_x = alpha_x
         self.alpha_y = alpha_y
         self.beta_x = beta_x
@@ -95,44 +157,58 @@ class Txy1:
 
     def __call__(self, x: float, y: float) -> float:
         if self.numpy_based:
-            return self.T0 + self.T1 * np.sin(
+            return self.phi0 + self.phi1 * np.sin(
                 self.alpha_x * np.pi * x + self.beta_x
             ) * np.exp(self.alpha_y * np.pi * y + self.beta_y)
         else:
-            return self.T0 + self.T1 * torch.sin(
+            return self.phi0 + self.phi1 * torch.sin(
                 self.alpha_x * torch.pi * x + self.beta_x
             ) * torch.exp(self.alpha_y * torch.pi * y + self.beta_y)
 
 
 class ProblemType(Enum):
+    """
+    Flags for type of network that should be used in pinn_2d_cond() function below.
+        PDE_CONDUCTION: Train a NN that provides the exact solution to cond-conv PDE.
+        MODEL_PHI_XY1 : Use the network in class Model_Phi_XY1 which outputs the analytical
+            solution to the PDE.
+
+    """
+
     PDE_CONDUCTION = auto()
-    MODEL_TXY1 = auto()
+    MODEL_PHI_XY1 = auto()
 
 
-def pinn_2d_cond() -> None:
-    mode = ProblemType.PDE_CONDUCTION
+def pinn_2d_cond(mode: ProblemType) -> None:
+    """
+    Solves the conduction only conservation equation
+
+    Δφ = ∂^2φ/∂x^2 + ∂^2φ/∂y^2 = 0,
+
+    using PINN. on a rectangular domain. Here Δ is the Laplacian operator, and φ is the conserved quantity
+    """
     # ===Problem===================================
     Lx = 1.0
     Ly = 1.0
-    T0 = 0.0
-    T1 = 1.0
+    phi0 = 0.0
+    phi1 = 1.0
     alpha_x = 1 / Lx
-    alpha_y = -alpha_x  # to satisfy Txx + Tyy = 0 => alpha_x = ± alpha_y
+    alpha_y = -alpha_x  # to satisfy phi_xx + phi_yy = 0 => alpha_x = ± alpha_y
     beta_x = 0
     beta_y = 0
-    T_theory_np = Txy1(
-        T0=T0,
-        T1=T1,
+    phi_theory_np = Phi_xy1(
+        phi0=phi0,
+        phi1=phi1,
         alpha_x=alpha_x,
         alpha_y=alpha_y,
         beta_x=beta_x,
         beta_y=beta_y,
         numpy_based=True,
     )
-    title = "Txx + Tyy = 0, T_theory = T0 + T1 * sin(ax * x + beta_x) * exp(-ay * y + beta_y)"
-    title += f"\nT0 = {T0}, T1 = {T1}, alpha_x = {alpha_x}, alpha_y = {alpha_y}, beta_x = {beta_x}, beta_y = {beta_y}"
+    title = "φxx + φyy = 0, φ_theory = φ0 + φ1 * sin(ax * x + beta_x) * exp(-ay * y + beta_y)"
+    title += f"\nφ0 = {phi0}, φ1 = {phi1}, alpha_x = {alpha_x}, alpha_y = {alpha_y}, beta_x = {beta_x}, beta_y = {beta_y}"
     # ===Parameters================================
-    epochs = 1 if mode == ProblemType.MODEL_TXY1 else 10000
+    epochs = 1 if mode == ProblemType.MODEL_PHI_XY1 else 10000
     lr = 0.001
     depths = [64, 64]
     act_func_type = ACT_FUNCT_TYPE.TANH
@@ -141,9 +217,9 @@ def pinn_2d_cond() -> None:
     title += f"\nepochs = {epochs}, lr = {lr}, depths = {depths}, N_train = {(Nx_train , Ny_train)}, sigma = {act_func_type}"
     # ====Training==================================
     torch.manual_seed(72)
-    if mode == ProblemType.MODEL_TXY1:
-        model = Model_TXY1(
-            alpha_x=alpha_x, beta_x=beta_x, alpha_y=alpha_y, beta_y=beta_y, T0=T0, T1=T1
+    if mode == ProblemType.MODEL_PHI_XY1:
+        model = Model_Phi_XY1(
+            alpha_x=alpha_x, beta_x=beta_x, alpha_y=alpha_y, beta_y=beta_y, phi0=phi0, phi1=phi1
         )
     else:
         model = SeqModel(
@@ -151,8 +227,8 @@ def pinn_2d_cond() -> None:
         )
     file_name = "model_weights_lap_orig." + str(mode) + ".pth"
     model_file = THIS_PATH / file_name
-    X, Y, XY, XY_boundary, T_boundary = gen_square_domain(
-        Nx=Nx_train, Ny=Ny_train, Lx=Lx, Ly=Ly, boundary_value=T_theory_np
+    X, Y, XY, XY_boundary, phi_boundary = gen_square_domain(
+        Nx=Nx_train, Ny=Ny_train, Lx=Lx, Ly=Ly, boundary_value=phi_theory_np
     )
     duration_mins = 0
     losses = []
@@ -164,23 +240,23 @@ def pinn_2d_cond() -> None:
 
         t_start = time.time()
         for i in range(epochs):
-            T = model(XY)
-            Tx = torch.autograd.grad(
-                T, X, torch.ones_like(T), create_graph=True, retain_graph=True
+            phi = model(XY)
+            phi_x = torch.autograd.grad(
+                phi, X, torch.ones_like(phi), create_graph=True, retain_graph=True
             )[0]
-            Txx = torch.autograd.grad(
-                Tx, X, torch.ones_like(Tx), create_graph=True, retain_graph=True
+            phi_xx = torch.autograd.grad(
+                phi_x, X, torch.ones_like(phi_x), create_graph=True, retain_graph=True
             )[0]
-            Ty = torch.autograd.grad(
-                T, Y, torch.ones_like(T), create_graph=True, retain_graph=True
+            phi_y = torch.autograd.grad(
+                phi, Y, torch.ones_like(phi), create_graph=True, retain_graph=True
             )[0]
-            Tyy = torch.autograd.grad(
-                Ty, Y, torch.ones_like(Ty), create_graph=True, retain_graph=True
+            phi_yy = torch.autograd.grad(
+                phi_y, Y, torch.ones_like(phi_y), create_graph=True, retain_graph=True
             )[0]
-            residual = Txx + Tyy
+            residual = phi_xx + phi_yy
             loss_pde = criterion(residual, torch.zeros_like(residual))
             T_pred_boundary = model(XY_boundary)
-            loss_bc = criterion(T_pred_boundary, T_boundary)
+            loss_bc = criterion(T_pred_boundary, phi_boundary)
             loss = loss_pde + loss_bc
             losses.append(loss.item())
             optimizer.zero_grad()
@@ -198,10 +274,10 @@ def pinn_2d_cond() -> None:
     # ====Error evaluation=============================
     max_err = 0
     xy = XY.detach().numpy()
-    T = model(XY)
-    T_exact = T_theory_np(xy[:, 0], xy[:, 1]).reshape(-1, 1)
-    T_pred = T.detach().numpy()
-    max_err = np.max(np.fabs(T_exact - T_pred))
+    phi = model(XY)
+    phi_exact = phi_theory_np(xy[:, 0], xy[:, 1]).reshape(-1, 1)
+    phi_pred = phi.detach().numpy()
+    max_err = np.max(np.fabs(phi_exact - phi_pred))
     print(f"max_err = {max_err}")
     title += f"\nmax_abs_error = {max_err}"
     N_diag = 101
@@ -213,9 +289,9 @@ def pinn_2d_cond() -> None:
         axis=1,
     )
     XY_antidiag = torch.FloatTensor(xy_antidiag)
-    T_antidiag_exact = T_theory_np(xy_antidiag[:, 0], xy_antidiag[:, 1])
-    T_antidiag_pred = model(XY_antidiag)
-    T_antidiag_pred = T_antidiag_pred.detach().numpy()
+    phi_antidiag_exact = phi_theory_np(xy_antidiag[:, 0], xy_antidiag[:, 1])
+    phi_antidiag_pred = model(XY_antidiag)
+    phi_antidiag_pred = phi_antidiag_pred.detach().numpy()
 
     xy_diag = np.concatenate(
         (
@@ -225,29 +301,29 @@ def pinn_2d_cond() -> None:
         axis=1,
     )
     XY_diag = torch.FloatTensor(xy_diag)
-    T_diag_exact = T_theory_np(xy_diag[:, 0], xy_diag[:, 1])
-    T_diag_pred = model(XY_diag)
-    T_diag_pred = T_diag_pred.detach().numpy()
+    phi_diag_exact = phi_theory_np(xy_diag[:, 0], xy_diag[:, 1])
+    phi_diag_pred = model(XY_diag)
+    phi_diag_pred = phi_diag_pred.detach().numpy()
     plt.subplot(3, 1, 1)
     plt.title(title)
-    plt.plot(np.linspace(0.0, 1.0, N_diag), T_antidiag_exact, label="T_exact")
+    plt.plot(np.linspace(0.0, 1.0, N_diag), phi_antidiag_exact, label="φ_exact")
     plt.plot(
         np.linspace(0.0, 1.0, N_diag),
-        T_antidiag_pred,
-        label="T_PINN",
+        phi_antidiag_pred,
+        label="φ_PINN",
         linestyle="dashed",
     )
     plt.xlabel("non-dim distance along anti-diagonal")
-    plt.ylabel("T")
+    plt.ylabel("φ")
     plt.legend()
 
     plt.subplot(3, 1, 2)
-    plt.plot(np.linspace(0.0, 1.0, N_diag), T_diag_exact, label="T_exact")
+    plt.plot(np.linspace(0.0, 1.0, N_diag), phi_diag_exact, label="φ_exact")
     plt.plot(
-        np.linspace(0.0, 1.0, N_diag), T_diag_pred, label="T_PINN", linestyle="dashed"
+        np.linspace(0.0, 1.0, N_diag), phi_diag_pred, label="φ_PINN", linestyle="dashed"
     )
     plt.xlabel("non-dim distance along diagonal")
-    plt.ylabel("T")
+    plt.ylabel("φ")
     plt.legend()
 
     if len(losses) > 0:
@@ -260,6 +336,6 @@ def pinn_2d_cond() -> None:
 
 
 if __name__ == "__main__":
-    pinn_2d_cond()
+    pinn_2d_cond(mode=ProblemType.PDE_CONDUCTION)
 
-# py -m FVM_PINN_workshop.pinn_2d_cond
+# py -m pinn.pinn_2d_cond

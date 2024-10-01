@@ -6,15 +6,42 @@ from pathlib import Path
 from pinn.model import *
 from pinn.pinn_2d_cond import gen_square_domain
 
+"""
+Practice runs on physics-informed neural networks (PINN) for solving conduction-convection 
+conservation equtaion in a two-dimensional rectangular domain.
+
+Refs: 
+    Raissi, M., Perdikaris, P. and Karniadakis, G.E., 2019. Physics-informed neural networks: 
+    A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations. 
+    Journal of Computational physics, 378, pp.686-707.
+
+    Cai, S., Wang, Z., Wang, S., Perdikaris, P. and Karniadakis, G.E., 2021. 
+    Physics-informed neural networks for heat transfer problems. Journal of Heat Transfer, 143(6), p.060801.
+
+    Cai, Z., Chen, J. and Liu, M., 2021. Least-squares ReLU neural network (LSNN) 
+    method for linear advection-reaction equation. Journal of Computational Physics, 443, p.110514.
+"""
+
 THIS_PATH = Path(__file__).parent.resolve()
 
 
 class Txy2:
+    """
+    A functor for the function:
+
+        φ(x, y) = alpha + beta * exp(z - z_max),
+
+    where
+
+        z = u * (x * cos(theta) + y * sin(theta)) / kappa
+
+    """
+
     def __init__(
         self,
         kappa: float = 1,
-        T0: float = 0,
-        T1: float = 1,
+        phi0: float = 0,
+        phi1: float = 1,
         u: float = 1,
         theta_deg: float = 45,
         x_max: float = 1,
@@ -27,36 +54,50 @@ class Txy2:
         self.ux = u * np.cos(theta)
         self.uy = u * np.sin(theta)
         self.z_max = (self.ux * x_max + self.uy * y_max) / kappa
-        self.beta = (T1 - T0) / (1 - self.box.exp(-self.z_max))
-        self.alpha = T1 - self.beta
+        self.beta = (phi1 - phi0) / (1 - self.box.exp(-self.z_max))
+        self.alpha = phi1 - self.beta
 
     def __call__(self, x: float, y: float) -> float:
         z = (self.ux * x + self.uy * y) / self.kappa
         return self.alpha + self.beta * self.box.exp(z - self.z_max)
 
 
-def pinn_2d_conv() -> None:
+def pinn_2d_cond_conv() -> None:
+    """
+    Using PINN to solve the conduction-convection conservation equation,
+
+    u ⋅ ∇φ = k Δφ,
+
+    on a 2D rectangular domain. Here Δ is the Laplacian operator, k is diffusivity,
+    and φ is the conserved quantity, ∇ is the graident operator and u is the 2D velocity field.
+
+    The following Dirichlet boundary condition is enforced:
+
+    φ(x,y| (x,y) ∈ domain boundary) = φ0 + φ1 exp((x * ux + y * uy) / k - argmax)
+
+    where argmax = (Lx * ux + Ly * uy) / k.
+    """
     Lx = 1.0
     Ly = 1.0
-    T0 = 0.0
-    T1 = 1.0
+    phi0 = 0.0
+    phi1 = 1.0
     kappa = 1.0
     u = 2.0
     theta_deg = 30.0
-    T_theory_np = Txy2(
+    phi_theory_np = Txy2(
         kappa=kappa,
-        T0=T0,
-        T1=T1,
+        phi0=phi0,
+        phi1=phi1,
         u=u,
         theta_deg=theta_deg,
         x_max=Lx,
         y_max=Ly,
         numpy_based=True,
     )
-    title = "ux Tx + uy Ty = Txx + Tyy, T_theory = alpha + beta * exp(z - z_max)"
+    title = "ux φ,x + uy φ,y = φ,xx + φ,yy, φ_theory = alpha + beta * exp(z - z_max)"
     title += "z = (ux * x + uy * y) / kappa"
-    title += "T(0,0) = T0, T(x_max, y_max) = T1"
-    title += f"\nT0 = {T0}, T1 = {T1}, u = {u}, theta_deg = {theta_deg}, kappa = {kappa}, Lx = {Lx}, Ly = {Ly}"
+    title += "φ(0,0) = φ, φ(x_max, y_max) = φ1"
+    title += f"\nφ0 = {phi0}, φ1 = {phi1}, u = {u}, theta_deg = {theta_deg}, kappa = {kappa}, Lx = {Lx}, Ly = {Ly}"
     # ===Parameters================================
     epochs = 10000
     lr = 0.0001
@@ -72,8 +113,8 @@ def pinn_2d_conv() -> None:
     )
     file_name = "model_weights_cond_conv.pth"
     model_file = THIS_PATH / file_name
-    X, Y, XY, XY_boundary, T_boundary = gen_square_domain(
-        Nx=Nx_train, Ny=Ny_train, Lx=Lx, Ly=Ly, boundary_value=T_theory_np
+    X, Y, XY, XY_boundary, phi_boundary = gen_square_domain(
+        Nx=Nx_train, Ny=Ny_train, Lx=Lx, Ly=Ly, boundary_value=phi_theory_np
     )
     duration_mins = 0
     losses = []
@@ -87,23 +128,23 @@ def pinn_2d_conv() -> None:
         uy = u * np.sin(theta)
         t_start = time.time()
         for i in range(epochs):
-            T = model(XY)
-            Tx = torch.autograd.grad(
-                T, X, torch.ones_like(T), create_graph=True, retain_graph=True
+            phi = model(XY)
+            phi_x = torch.autograd.grad(
+                phi, X, torch.ones_like(phi), create_graph=True, retain_graph=True
             )[0]
-            Txx = torch.autograd.grad(
-                Tx, X, torch.ones_like(Tx), create_graph=True, retain_graph=True
+            phi_xx = torch.autograd.grad(
+                phi_x, X, torch.ones_like(phi_x), create_graph=True, retain_graph=True
             )[0]
-            Ty = torch.autograd.grad(
-                T, Y, torch.ones_like(T), create_graph=True, retain_graph=True
+            phi_y = torch.autograd.grad(
+                phi, Y, torch.ones_like(phi), create_graph=True, retain_graph=True
             )[0]
-            Tyy = torch.autograd.grad(
-                Ty, Y, torch.ones_like(Ty), create_graph=True, retain_graph=True
+            phi_yy = torch.autograd.grad(
+                phi_y, Y, torch.ones_like(phi_y), create_graph=True, retain_graph=True
             )[0]
-            residual = kappa * (Txx + Tyy) - (ux * Tx + uy * Ty)
+            residual = kappa * (phi_xx + phi_yy) - (ux * phi_x + uy * phi_y)
             loss_pde = criterion(residual, torch.zeros_like(residual))
-            T_pred_boundary = model(XY_boundary)
-            loss_bc = criterion(T_pred_boundary, T_boundary)
+            phi_pred_boundary = model(XY_boundary)
+            loss_bc = criterion(phi_pred_boundary, phi_boundary)
             loss = loss_pde + loss_bc
             losses.append(loss.item())
             optimizer.zero_grad()
@@ -121,10 +162,10 @@ def pinn_2d_conv() -> None:
     # ====Error evaluation=============================
     max_err = 0
     xy = XY.detach().numpy()
-    T = model(XY)
-    T_exact = T_theory_np(xy[:, 0], xy[:, 1]).reshape(-1, 1)
-    T_pred = T.detach().numpy()
-    max_err = np.max(np.fabs(T_exact - T_pred))
+    phi = model(XY)
+    phi_exact = phi_theory_np(xy[:, 0], xy[:, 1]).reshape(-1, 1)
+    phi_pred = phi.detach().numpy()
+    max_err = np.max(np.fabs(phi_exact - phi_pred))
     title += f", max_abs_error = {max_err}"
     print(f"max_err = {max_err}")
     N_diag = 101
@@ -136,9 +177,9 @@ def pinn_2d_conv() -> None:
         axis=1,
     )
     XY_antidiag = torch.FloatTensor(xy_antidiag)
-    T_antidiag_exact = T_theory_np(xy_antidiag[:, 0], xy_antidiag[:, 1])
-    T_antidiag_pred = model(XY_antidiag)
-    T_antidiag_pred = T_antidiag_pred.detach().numpy()
+    phi_antidiag_exact = phi_theory_np(xy_antidiag[:, 0], xy_antidiag[:, 1])
+    phi_antidiag_pred = model(XY_antidiag)
+    phi_antidiag_pred = phi_antidiag_pred.detach().numpy()
 
     xy_diag = np.concatenate(
         (
@@ -148,29 +189,29 @@ def pinn_2d_conv() -> None:
         axis=1,
     )
     XY_diag = torch.FloatTensor(xy_diag)
-    T_diag_exact = T_theory_np(xy_diag[:, 0], xy_diag[:, 1])
-    T_diag_pred = model(XY_diag)
-    T_diag_pred = T_diag_pred.detach().numpy()
+    phi_diag_exact = phi_theory_np(xy_diag[:, 0], xy_diag[:, 1])
+    phi_diag_pred = model(XY_diag)
+    phi_diag_pred = phi_diag_pred.detach().numpy()
     plt.subplot(3, 1, 1)
     plt.title(title)
-    plt.plot(np.linspace(0.0, 1.0, N_diag), T_antidiag_exact, label="T_exact")
+    plt.plot(np.linspace(0.0, 1.0, N_diag), phi_antidiag_exact, label="φ_exact")
     plt.plot(
         np.linspace(0.0, 1.0, N_diag),
-        T_antidiag_pred,
-        label="T_PINN",
+        phi_antidiag_pred,
+        label="φ_PINN",
         linestyle="dashed",
     )
     plt.xlabel("non-dim distance along anti-diagonal")
-    plt.ylabel("T")
+    plt.ylabel("φ")
     plt.legend()
 
     plt.subplot(3, 1, 2)
-    plt.plot(np.linspace(0.0, 1.0, N_diag), T_diag_exact, label="T_exact")
+    plt.plot(np.linspace(0.0, 1.0, N_diag), phi_diag_exact, label="φ_exact")
     plt.plot(
-        np.linspace(0.0, 1.0, N_diag), T_diag_pred, label="T_PINN", linestyle="dashed"
+        np.linspace(0.0, 1.0, N_diag), phi_diag_pred, label="φ_PINN", linestyle="dashed"
     )
     plt.xlabel("non-dim distance along diagonal")
-    plt.ylabel("T")
+    plt.ylabel("φ")
     plt.legend()
 
     if len(losses) > 0:
@@ -183,6 +224,6 @@ def pinn_2d_conv() -> None:
 
 
 if __name__ == "__main__":
-    pinn_2d_conv()
+    pinn_2d_cond_conv()
 
-# py -m FVM_PINN_workshop.pinn_2d_conv
+# py -m pinn.pinn_2d_cond_conv
