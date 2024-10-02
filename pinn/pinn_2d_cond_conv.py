@@ -192,6 +192,7 @@ def pinn_2d_cond_conv() -> None:
     phi_diag_exact = phi_theory_np(xy_diag[:, 0], xy_diag[:, 1])
     phi_diag_pred = model(XY_diag)
     phi_diag_pred = phi_diag_pred.detach().numpy()
+    plt.figure(figsize=(12, 10))
     plt.subplot(3, 1, 1)
     plt.title(title)
     plt.plot(np.linspace(0.0, 1.0, N_diag), phi_antidiag_exact, label="φ_exact")

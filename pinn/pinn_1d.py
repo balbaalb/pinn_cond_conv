@@ -68,7 +68,11 @@ def pinn_1d_cond():
             phi_pred, x, torch.ones_like(phi_pred), create_graph=True, retain_graph=True
         )[0]
         phi_xx_pred = torch.autograd.grad(
-            phi_x_pred, x, torch.ones_like(phi_x_pred), create_graph=True, retain_graph=True
+            phi_x_pred,
+            x,
+            torch.ones_like(phi_x_pred),
+            create_graph=True,
+            retain_graph=True,
         )[0]
         residual = phi_xx_pred * k + q
         loss_ode = criterion(residual, torch.zeros_like(residual))
@@ -196,7 +200,7 @@ def pinn_1d_cond_conv():
         φ(x) = φ0 + (φ1 - phi0)(exp(Pe(x/Lx - 1)) - exp(-Pe))
                             / (1 - exp(-Pe))
 
-    where, Pe, is the Péclet number. 
+    where, Pe, is the Péclet number.
 
     Pe = u * Lx / k
     """
@@ -215,7 +219,8 @@ def pinn_1d_cond_conv():
     title += f"\nepochs = {epochs}, lr = {lr}, depths = {depths}, N_train = {N_train}, sigma = {act_func_type.name}"
     # =====================================
     phi_exact = lambda x: (
-        phi0 + (phi1 - phi0) * (np.exp(Pe * (x / Lx - 1)) - np.exp(-Pe)) / (1 - np.exp(-Pe))
+        phi0
+        + (phi1 - phi0) * (np.exp(Pe * (x / Lx - 1)) - np.exp(-Pe)) / (1 - np.exp(-Pe))
         if Pe > 0
         else (np.exp(Pe * (x / Lx)) - 1) / (np.exp(Pe) - 1) if Pe < 0 else x / Lx
     )
@@ -240,7 +245,11 @@ def pinn_1d_cond_conv():
             phi_pred, x, torch.ones_like(phi_pred), create_graph=True, retain_graph=True
         )[0]
         phi_xx_pred = torch.autograd.grad(
-            phi_x_pred, x, torch.ones_like(phi_x_pred), create_graph=True, retain_graph=True
+            phi_x_pred,
+            x,
+            torch.ones_like(phi_x_pred),
+            create_graph=True,
+            retain_graph=True,
         )[0]
         residual = phi_xx_pred - phi_x_pred * Pe
         loss_ode = criterion(residual, torch.zeros_like(residual))
@@ -274,8 +283,8 @@ def pinn_1d_cond_conv():
 
 
 if __name__ == "__main__":
-    # pinn_1d_cond()
-    # pinn_1d_cond_scaled()
+    pinn_1d_cond()
+    pinn_1d_cond_scaled()
     pinn_1d_cond_conv()
 
 

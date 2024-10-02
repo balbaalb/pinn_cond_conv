@@ -219,7 +219,12 @@ def pinn_2d_cond(mode: ProblemType) -> None:
     torch.manual_seed(72)
     if mode == ProblemType.MODEL_PHI_XY1:
         model = Model_Phi_XY1(
-            alpha_x=alpha_x, beta_x=beta_x, alpha_y=alpha_y, beta_y=beta_y, phi0=phi0, phi1=phi1
+            alpha_x=alpha_x,
+            beta_x=beta_x,
+            alpha_y=alpha_y,
+            beta_y=beta_y,
+            phi0=phi0,
+            phi1=phi1,
         )
     else:
         model = SeqModel(
@@ -269,8 +274,8 @@ def pinn_2d_cond(mode: ProblemType) -> None:
         torch.save(model.state_dict(), model_file)
         t_end = time.time()
         duration_mins = (t_end - t_start) / 60
-        title += f" , training time = {duration_mins} min"
-        title += f"\nloss = {loss.item()}, loss_pde = {loss_pde.item()}, loss_bc = {loss_bc.item()}"
+        title += f" , training time = {round(duration_mins , 3)} min"
+        title += f"\nloss = {round(loss.item() , 4)}, loss_pde = {round(loss_pde.item() , 4)}, loss_bc = {round(loss_bc.item() , 4)}"
     # ====Error evaluation=============================
     max_err = 0
     xy = XY.detach().numpy()
@@ -279,7 +284,8 @@ def pinn_2d_cond(mode: ProblemType) -> None:
     phi_pred = phi.detach().numpy()
     max_err = np.max(np.fabs(phi_exact - phi_pred))
     print(f"max_err = {max_err}")
-    title += f"\nmax_abs_error = {max_err}"
+
+    title += f"\nmax_abs_error = {round(max_err , 5)}"
     N_diag = 101
     xy_antidiag = np.concatenate(
         (
@@ -304,6 +310,7 @@ def pinn_2d_cond(mode: ProblemType) -> None:
     phi_diag_exact = phi_theory_np(xy_diag[:, 0], xy_diag[:, 1])
     phi_diag_pred = model(XY_diag)
     phi_diag_pred = phi_diag_pred.detach().numpy()
+    plt.figure(figsize=(12, 10))
     plt.subplot(3, 1, 1)
     plt.title(title)
     plt.plot(np.linspace(0.0, 1.0, N_diag), phi_antidiag_exact, label="φ_exact")
