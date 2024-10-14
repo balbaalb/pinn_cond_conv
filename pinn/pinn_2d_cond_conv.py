@@ -73,7 +73,16 @@ class PinnCondConv2D:
     """
 
     def __init__(
-        self, depths, Lx, Ly, Nx_train, Ny_train, phi_theory_np, kappa, ux, uy
+        self,
+        depths: list[int],
+        Lx: float,
+        Ly: float,
+        Nx_train: int,
+        Ny_train: int,
+        phi_theory_np: Callable[[float, float], float],
+        kappa: float,
+        ux: float,
+        uy: float,
     ) -> None:
         self.net = SeqModel(in_features=2, depths=depths, out_features=1)
         self.X, self.Y, self.XY, self.XY_boundary, self.phi_boundary = (
@@ -87,7 +96,11 @@ class PinnCondConv2D:
         self.losses = []
         self.epoch = 0
 
-    def pde_residual(self, phi):
+    def __pde_residual(self, phi: torch.Tensor) -> torch.Tensor:
+        """
+        Returns k Δφ - u ⋅ ∇φ
+
+        """
         phi_x = torch.autograd.grad(
             phi, self.X, torch.ones_like(phi), create_graph=True, retain_graph=True
         )[0]
@@ -103,10 +116,13 @@ class PinnCondConv2D:
         residual = self.kappa * (phi_xx + phi_yy) - (self.ux * phi_x + self.uy * phi_y)
         return residual
 
-    def loss_func(self):
+    def __loss_pinn(self) -> torch.Tensor:
+        """
+        Returns Loss function for training: residual of PDE + loss of deciation from the given boundary condions
+        """
         self.epoch += 1
         phi = self.net(self.XY)
-        residual = self.pde_residual(phi=phi)
+        residual = self.__pde_residual(phi=phi)
         loss_pde = self.criterion(residual, torch.zeros_like(residual))
         phi_pred_boundary = self.net(self.XY_boundary)
         loss_bc = self.criterion(phi_pred_boundary, self.phi_boundary)
@@ -120,11 +136,22 @@ class PinnCondConv2D:
             )
         return loss
 
-    def train(self, lr, epochs):
+    def train_pinn(self, lr: float, epochs: int) -> None:
         self.criterion = nn.MSELoss()
         self.optimizer = torch.optim.Adam(params=self.net.parameters(), lr=lr)
         for _ in range(epochs):
-            self.optimizer.step(self.loss_func)
+            self.optimizer.step(self.__loss_pinn)
+        self.optimizer = torch.optim.LBFGS(
+            self.net.parameters(),
+            lr=1.0,
+            max_iter=50000,
+            max_eval=50000,
+            history_size=50,
+            tolerance_grad=1e-7,
+            tolerance_change=1.0 * np.finfo(float).eps,
+            line_search_fn="strong_wolfe",
+        )
+        self.optimizer.step(self.__loss_pinn)
 
 
 def pinn_2d_cond_conv() -> None:
@@ -167,7 +194,7 @@ def pinn_2d_cond_conv() -> None:
     title += "φ(0,0) = φ, φ(x_max, y_max) = φ1, "
     title += f"\nφ0 = {phi0}, φ1 = {phi1}, u = {u}, theta_deg = {theta_deg}, kappa = {kappa}, Lx = {Lx}, Ly = {Ly}"
     # ===Parameters================================
-    epochs = 10000
+    epochs = 100
     lr = 0.0001
     depths = [64, 64]
     Nx_train = 101
@@ -195,7 +222,7 @@ def pinn_2d_cond_conv() -> None:
     else:
 
         t_start = time.time()
-        model.train(lr=lr, epochs=epochs)
+        model.train_pinn(lr=lr, epochs=epochs)
         t_end = time.time()
         duration_mins = (t_end - t_start) / 60
         title += f" , training time = {duration_mins} min"
