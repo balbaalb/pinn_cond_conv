@@ -2,52 +2,6 @@ from pinn.pinn_2d_cond import *
 from pytest import approx
 
 
-def test_gen_square_domain():
-    Lx = 5.0
-    Ly = 3.0
-    Nx = 6
-    Ny = 4
-    boundary_value = lambda x, y: x**2 + y**3
-    X, Y, XY, XY_boundary, phi_boundary = gen_square_domain(
-        Lx=Lx, Ly=Ly, Nx=Nx, Ny=Ny, boundary_value=boundary_value
-    )
-    # in progress ...
-    n = 0
-    for i in range(6):
-        for j in range(4):
-            assert X[n] == i
-            assert Y[n] == j
-            assert XY[n, 0] == i
-            assert XY[n, 1] == j
-            n += 1
-    assert XY_boundary.shape == (16, 2)
-    n = 0
-    for i in range(6):
-        x = XY_boundary[n, 0]
-        y = XY_boundary[n, 1]
-        assert x == i and y == 0
-        assert phi_boundary[n] == x**2 + y**3
-        n += 1
-    for j in range(1, 3):
-        x = XY_boundary[n, 0]
-        y = XY_boundary[n, 1]
-        assert x == 5 and y == j
-        assert phi_boundary[n] == x**2 + y**3
-        n += 1
-    for i in range(6):
-        x = XY_boundary[n, 0]
-        y = XY_boundary[n, 1]
-        assert x == 5 - i and y == 3
-        assert phi_boundary[n] == x**2 + y**3
-        n += 1
-    for j in range(1, 3):
-        x = XY_boundary[n, 0]
-        y = XY_boundary[n, 1]
-        assert x == 0 and y == 3 - j
-        assert phi_boundary[n] == x**2 + y**3
-        n += 1
-
-
 def test_Model_TXY1():
     Lx = 1.0
     Ly = 1.0

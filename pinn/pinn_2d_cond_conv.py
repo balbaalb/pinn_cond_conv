@@ -115,7 +115,7 @@ def pinn_2d_cond_conv() -> None:
         Ly=Ly,
         Nx_train=Nx_train,
         Ny_train=Ny_train,
-        phi_theory_np=phi_theory_np,
+        phi_boundary=phi_theory_np,
         kappa=kappa,
         ux=ux,
         uy=uy,

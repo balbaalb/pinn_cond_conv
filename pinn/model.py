@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from typing import Callable
 from enum import Enum, auto
+from pytest import approx
 
 
 class ACT_FUNCT_TYPE(Enum):
@@ -239,7 +240,7 @@ def gen_square_domain(
     xy_boundary = np.concatenate((x_boundary, y_boundary), axis=1)
     XY_boundary = torch.FloatTensor(xy_boundary)
     if boundary_value is None:
-        return X, Y, XY, XY_boundary
+        return X, Y, XY, XY_boundary, None
     phi_boundary_np = boundary_value(x_boundary, y_boundary)
     phi_boundary = torch.FloatTensor(phi_boundary_np)
     return X, Y, XY, XY_boundary, phi_boundary
@@ -262,22 +263,42 @@ class PinnCondConv2D:
         Ly: float,
         Nx_train: int,
         Ny_train: int,
-        phi_theory_np: Callable[[float, float], float],
+        phi_boundary: Callable[[float, float], float],
         kappa: float,
-        ux: float = 0,
-        uy: float = 0,
+        ux: float = 0,  # set to "find" for ipinn
+        uy: float = 0,  # set to "find" for ipinn
+        xy_experiment: torch.Tensor = None,
+        phi_experiment: torch.Tensor = None,
     ) -> None:
         self.net = SeqModel(in_features=2, depths=depths, out_features=1)
         self.X, self.Y, self.XY, self.XY_boundary, self.phi_boundary = (
             gen_square_domain(
-                Nx=Nx_train, Ny=Ny_train, Lx=Lx, Ly=Ly, boundary_value=phi_theory_np
+                Nx=Nx_train, Ny=Ny_train, Lx=Lx, Ly=Ly, boundary_value=phi_boundary
             )
         )
         self.kappa = kappa
         self.ux = ux
+        self.find_ux = False
+        if self.ux == "find":
+            self.ux = torch.FloatTensor([0.0]).float()
+            self.ux = nn.Parameter(self.ux)
+            self.net.register_parameter(name="ux", param=self.ux)
+            self.find_ux = True
         self.uy = uy
+        self.find_uy = False
+        if self.uy == "find":
+            self.uy = torch.FloatTensor([0.0]).float()
+            self.uy = nn.Parameter(self.uy)
+            self.net.register_parameter(name="uy", param=self.uy)
+            self.find_uy = True
         self.losses = []
         self.epoch = 0
+        self.xy_domain = xy_experiment
+        self.phi_domain = phi_experiment
+        if phi_boundary is None and (xy_experiment is None or phi_experiment is None):
+            raise Exception(
+                "Either boundary conditions or domain data should be provided."
+            )
 
     def __pde_residual(self, phi: torch.Tensor) -> torch.Tensor:
         """
@@ -304,19 +325,32 @@ class PinnCondConv2D:
         Returns Loss function for training: residual of PDE + loss of deciation from the given boundary condions
         """
         self.epoch += 1
+        msg = f"Epoch = {self.epoch}, loss = "
         phi = self.net(self.XY)
         residual = self.__pde_residual(phi=phi)
         loss_pde = self.criterion(residual, torch.zeros_like(residual))
-        phi_pred_boundary = self.net(self.XY_boundary)
-        loss_bc = self.criterion(phi_pred_boundary, self.phi_boundary)
-        loss = loss_pde + loss_bc
+        loss = loss_pde
+        msg += f"{loss_pde.item()} (pde)"
+        if self.phi_boundary is not None:
+            phi_pred_boundary = self.net(self.XY_boundary)
+            loss_bc = self.criterion(phi_pred_boundary, self.phi_boundary)
+            loss = loss + loss_bc
+            msg += f" + {loss_bc.item()} (bc)"
+        if self.xy_domain is not None and self.phi_domain is not None:
+            phi_domain_pred = self.net(self.xy_domain)
+            loss_data = self.criterion(phi_domain_pred, self.phi_domain)
+            loss = loss + loss_data
+            msg += f" + {loss_data.item()} (data)"
         self.losses.append(loss.item())
+        msg += f" = {loss.item()}"
         self.optimizer.zero_grad()
         loss.backward()
+        if self.find_ux:
+            msg += f" , ux = {self.ux.item()}"
+        if self.find_uy:
+            msg += f" , uy = {self.uy.item()}"
         if (self.epoch) % 100 == 0:
-            print(
-                f"Epoch = {self.epoch}, loss = {loss.item()} = {loss_pde.item()} (PDE) + {loss_bc.item()} (BC)"
-            )
+            print(msg)
         return loss
 
     def train_pinn(self, lr: float, epochs: int) -> None:
@@ -341,3 +375,49 @@ class PinnCondConv2D:
             plt.ylabel("Loss")
             plt.yscale("log")
             plt.show()
+
+
+def test_gen_square_domain():
+    Lx = 5.0
+    Ly = 3.0
+    Nx = 6
+    Ny = 4
+    boundary_value = lambda x, y: x**2 + y**3
+    X, Y, XY, XY_boundary, phi_boundary = gen_square_domain(
+        Lx=Lx, Ly=Ly, Nx=Nx, Ny=Ny, boundary_value=boundary_value
+    )
+    # in progress ...
+    n = 0
+    for i in range(6):
+        for j in range(4):
+            assert X[n] == i
+            assert Y[n] == j
+            assert XY[n, 0] == i
+            assert XY[n, 1] == j
+            n += 1
+    assert XY_boundary.shape == (16, 2)
+    n = 0
+    for i in range(6):
+        x = XY_boundary[n, 0]
+        y = XY_boundary[n, 1]
+        assert x == i and y == 0
+        assert phi_boundary[n] == x**2 + y**3
+        n += 1
+    for j in range(1, 3):
+        x = XY_boundary[n, 0]
+        y = XY_boundary[n, 1]
+        assert x == 5 and y == j
+        assert phi_boundary[n] == x**2 + y**3
+        n += 1
+    for i in range(6):
+        x = XY_boundary[n, 0]
+        y = XY_boundary[n, 1]
+        assert x == 5 - i and y == 3
+        assert phi_boundary[n] == x**2 + y**3
+        n += 1
+    for j in range(1, 3):
+        x = XY_boundary[n, 0]
+        y = XY_boundary[n, 1]
+        assert x == 0 and y == 3 - j
+        assert phi_boundary[n] == x**2 + y**3
+        n += 1

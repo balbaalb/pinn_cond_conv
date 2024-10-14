@@ -165,7 +165,7 @@ def pinn_2d_cond(mode: ProblemType) -> None:
         Ly=Ly,
         Nx_train=Nx_train,
         Ny_train=Ny_train,
-        phi_theory_np=phi_theory_np,
+        phi_boundary=phi_theory_np,
         kappa=1.0,
     )
     if mode == ProblemType.MODEL_PHI_XY1:
