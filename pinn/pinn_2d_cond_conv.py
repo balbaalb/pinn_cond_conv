@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import time
 from pathlib import Path
 from pinn.model import *
-from pinn.pinn_2d_cond import gen_square_domain
 
 """
 Practice runs on physics-informed neural networks (PINN) for solving conduction-convection 

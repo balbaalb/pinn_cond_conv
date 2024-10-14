@@ -7,9 +7,9 @@ def test_gen_square_domain():
     Ly = 3.0
     Nx = 6
     Ny = 4
-    boundar_value = lambda x, y: x**2 + y**3
+    boundary_value = lambda x, y: x**2 + y**3
     X, Y, XY, XY_boundary, phi_boundary = gen_square_domain(
-        Lx=Lx, Ly=Ly, Nx=Nx, Ny=Ny, boundary_value=boundar_value
+        Lx=Lx, Ly=Ly, Nx=Nx, Ny=Ny, boundary_value=boundary_value
     )
     # in progress ...
     n = 0
@@ -57,11 +57,16 @@ def test_Model_TXY1():
     alpha_y = -alpha_x  # to satisfy phi_xx + phi_yy = 0 => alpha_x = ± alpha_y
     beta_x = 0
     beta_y = 0
-    phi_theory_np = lambda x, y: phi0 + phi1 * np.sin(np.pi * alpha_x * x + beta_x) * np.exp(
-        np.pi * alpha_y * y + beta_y
-    )
+    phi_theory_np = lambda x, y: phi0 + phi1 * np.sin(
+        np.pi * alpha_x * x + beta_x
+    ) * np.exp(np.pi * alpha_y * y + beta_y)
     m = Model_Phi_XY1(
-        alpha_x=alpha_x, beta_x=beta_x, alpha_y=alpha_y, beta_y=beta_y, phi0=phi0, phi1=phi1
+        alpha_x=alpha_x,
+        beta_x=beta_x,
+        alpha_y=alpha_y,
+        beta_y=beta_y,
+        phi0=phi0,
+        phi1=phi1,
     )
     assert m(torch.FloatTensor([0, 0])).item() == approx(0)
     assert m(torch.FloatTensor([1, 0])).item() == approx(0, abs=1.0e-7)
@@ -127,13 +132,18 @@ def test_Model_TXY1_test2():
     alpha_y = -alpha_x  # to satisfy phi_xx + phi_yy = 0 => alpha_x = ± alpha_y
     beta_x = 0
     beta_y = 0
-    phi_theory_np = lambda x, y: phi0 + phi1 * np.sin(np.pi * alpha_x * x + beta_x) * np.exp(
-        np.pi * alpha_y * y + beta_y
-    )
+    phi_theory_np = lambda x, y: phi0 + phi1 * np.sin(
+        np.pi * alpha_x * x + beta_x
+    ) * np.exp(np.pi * alpha_y * y + beta_y)
     Nx_train = 101
     Ny_train = 101
     model = Model_Phi_XY1(
-        alpha_x=alpha_x, beta_x=beta_x, alpha_y=alpha_y, beta_y=beta_y, phi0=phi0, phi1=phi1
+        alpha_x=alpha_x,
+        beta_x=beta_x,
+        alpha_y=alpha_y,
+        beta_y=beta_y,
+        phi0=phi0,
+        phi1=phi1,
     )
     criterion = nn.MSELoss()
     X, Y, XY, XY_boundary, phi_boundary = gen_square_domain(
