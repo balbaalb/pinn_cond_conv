@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from typing import Callable
 from pinn.model import *
 
 """
@@ -17,6 +18,95 @@ Refs:
     method for linear advection-reaction equation. Journal of Computational Physics, 443, p.110514.
 
 """
+
+
+class PinnCondConv1D:
+    """
+    Creates a pinn model for the equation
+
+    u dφ/dx = k d^2φ/dx^2 + q,
+
+    on a 1D domain. k is diffusivity, u is velocity and φ is the conserved quantity.
+    """
+
+    def __init__(
+        self,
+        depths: list[int],
+        Lx: float,
+        N_train: int,
+        kappa: float = 1,
+        u: float = 0,
+        q: float = 0,
+        phi0: float = 0,
+        phi1: float = 1,
+    ) -> None:
+        self.net = SeqModel(in_features=1, depths=depths, out_features=1)
+        self.X = torch.linspace(0, Lx, N_train).reshape(-1, 1)
+        self.X.requires_grad = True
+        self.kappa = kappa
+        self.losses = []
+        self.epoch = 0
+        self.u = u
+        self.q = q
+        self.x_bc = torch.FloatTensor([[0.0], [Lx]])
+        self.phi_bc = torch.FloatTensor([[phi0], [phi1]])
+
+    def __pde_residual(self, phi: torch.Tensor) -> torch.Tensor:
+        """
+        Returns k d^2φ/dx^2 - u dφ/dx
+
+        """
+        phi_x = torch.autograd.grad(
+            phi, self.X, torch.ones_like(phi), create_graph=True, retain_graph=True
+        )[0]
+        phi_xx = torch.autograd.grad(
+            phi_x, self.X, torch.ones_like(phi_x), create_graph=True, retain_graph=True
+        )[0]
+        residual = self.kappa * phi_xx - self.u * phi_x + self.q
+        return residual
+
+    def __loss_pinn(self) -> torch.Tensor:
+        """
+        Returns Loss function for training: residual of PDE + loss of deciation from the given boundary condions
+        """
+        self.epoch += 1
+        phi = self.net(self.X)
+        residual = self.__pde_residual(phi=phi)
+        loss_pde = self.criterion(residual, torch.zeros_like(residual))
+        phi_pred_boundary = self.net(self.x_bc)
+        loss_bc = self.criterion(phi_pred_boundary, self.phi_bc)
+        loss = loss_pde + loss_bc
+        self.losses.append(loss.item())
+        self.optimizer.zero_grad()
+        loss.backward()
+        if (self.epoch) % 100 == 0:
+            print(
+                f"Epoch = {self.epoch}, loss = {loss.item()} = {loss_pde.item()} (PDE) + {loss_bc.item()} (BC)"
+            )
+        return loss
+
+    def train_pinn(self, lr: float, epochs: int) -> None:
+        self.criterion = nn.MSELoss()
+        self.optimizer = torch.optim.Adam(params=self.net.parameters(), lr=lr)
+        for _ in range(epochs):
+            self.optimizer.step(self.__loss_pinn)
+        self.optimizer = torch.optim.LBFGS(
+            self.net.parameters(),
+            lr=1.0,
+            max_iter=50000,
+            max_eval=50000,
+            history_size=50,
+            tolerance_grad=1e-7,
+            tolerance_change=1.0 * np.finfo(float).eps,
+            line_search_fn="strong_wolfe",
+        )
+        self.optimizer.step(self.__loss_pinn)
+        if len(self.losses) > 0:
+            plt.plot(self.losses)
+            plt.xlabel("Epochs")
+            plt.ylabel("Loss")
+            plt.yscale("log")
+            plt.show()
 
 
 def pinn_1d_cond():
@@ -40,67 +130,38 @@ def pinn_1d_cond():
     q = -5
     title += f"\nk = {k}, q = {q}, φ0 = {phi0}, φ1 = {phi1}, Lx = {Lx}"
     # ==== Parameters ======
-    epochs = 10000
+    epochs = 100
     lr = 0.01
     depths = [64, 64, 64]
     N_train = 1001
-    act_func_type = ACT_FUNCT_TYPE.TANH
-    title += f"\nepochs = {epochs}, lr = {lr}, depths = {depths}, N_train = {N_train}, sigma = {act_func_type.name}"
     # ======================
-    C1 = (phi1 - phi0) / Lx + q / 2 / k * Lx
-    x0 = np.linspace(0.0, Lx, 1001)
-    y0 = -q * x0**2 / 2 / k + C1 * x0 + phi0
     torch.manual_seed(616)
-    model = Model(in_features=1, depths=depths, out_features=1)  # T = f(x)
-    model.set_act_func_type(act_func_type)
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
-    losses = []
-    x = torch.linspace(0.0, Lx, N_train).reshape(-1, 1)
-    x.requires_grad = True
-    x_bc = torch.FloatTensor([[0.0], [Lx]])
-    phi_bc = torch.FloatTensor([[phi0], [phi1]])
-    for i in range(epochs):
-        phi_pred_bc = model(x_bc)
-        loss_bc = criterion(phi_pred_bc, phi_bc)
-        phi_pred = model(x)
-        phi_x_pred = torch.autograd.grad(
-            phi_pred, x, torch.ones_like(phi_pred), create_graph=True, retain_graph=True
-        )[0]
-        phi_xx_pred = torch.autograd.grad(
-            phi_x_pred,
-            x,
-            torch.ones_like(phi_x_pred),
-            create_graph=True,
-            retain_graph=True,
-        )[0]
-        residual = phi_xx_pred * k + q
-        loss_ode = criterion(residual, torch.zeros_like(residual))
-        loss = loss_ode + loss_bc
-        losses.append(loss.item())
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        if (i + 1) % 100 == 0:
-            print(
-                f"Epoch = {i+1}   loss = {loss.item()} = {loss_bc.item()} (bc loss) + {loss_ode.item()} (ode loss)"
-            )
-    plt.figure(figsize=(10, 8))
-    plt.subplot(2, 1, 1)
-    plt.plot(x0, y0, label="exact solution")
-    plt.plot(
-        x.detach().numpy(), phi_pred.detach().numpy(), label="PINN", linestyle="dashed"
+
+    model = PinnCondConv1D(
+        depths=depths,
+        Lx=Lx,
+        N_train=N_train,
+        kappa=k,
+        u=0,
+        q=q,
+        phi0=phi0,
+        phi1=phi1,
     )
-    plt.xlabel("x")
-    plt.ylabel("φ")
-    plt.title(title)
-    plt.legend()
-    plt.subplot(2, 1, 2)
-    plt.plot(losses)
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.yscale("log")
-    plt.show()
+    model.train_pinn(lr=lr, epochs=epochs)
+    with torch.no_grad():
+        C1 = (phi1 - phi0) / Lx + q / 2 / k * Lx
+        x0 = np.linspace(0.0, Lx, 313)
+        y0 = -q * x0**2 / 2 / k + C1 * x0 + phi0
+        x_test = torch.FloatTensor(x0).reshape(-1, 1)
+        phi_pred = model.net(x_test)
+        plt.figure(figsize=(10, 4))
+        plt.plot(x0, y0, label="exact solution")
+        plt.plot(x0, phi_pred.detach().numpy(), label="PINN", linestyle="dashed")
+        plt.xlabel("x")
+        plt.ylabel("φ")
+        plt.title(title)
+        plt.legend()
+        plt.show()
 
 
 def pinn_1d_cond_scaled():
@@ -238,7 +299,7 @@ def pinn_1d_cond_conv():
     x_bc = torch.FloatTensor([[0.0], [1.0]])
     phi_bc = torch.FloatTensor([[0.0], [1.0]])
     for i in range(epochs):
-        phi_pred_bc = model(x_bc)
+        phi_pred_bc = model.net(x_bc)
         loss_bc = criterion(phi_pred_bc, phi_bc)
         phi_pred = model(x)
         phi_x_pred = torch.autograd.grad(
@@ -284,8 +345,8 @@ def pinn_1d_cond_conv():
 
 if __name__ == "__main__":
     pinn_1d_cond()
-    pinn_1d_cond_scaled()
-    pinn_1d_cond_conv()
+    # pinn_1d_cond_scaled()
+    # pinn_1d_cond_conv()
 
 
 # py -m pinn.pinn_1d
