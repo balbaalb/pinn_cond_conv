@@ -183,72 +183,37 @@ def pinn_1d_cond_scaled():
     q = -5
     title += f"\nk = {k}, q = {q},φ0 = {phi0}, φ1 = {phi1}, Lx = {Lx}"
     # ==== Parameters ====================================
-    epochs = 10000
+    epochs = 100
     lr = 0.01
     depths = [64, 64, 64]
     N_train = 1001
-    act_func_type = ACT_FUNCT_TYPE.TANH
-    title += f"\nepochs = {epochs}, lr = {lr}, depths = {depths}, N_train = {N_train}, sigma = {act_func_type.name}"
     # =========================================
-    C1 = (phi1 - phi0) / Lx + q / 2 / k * Lx
-    x0 = np.linspace(0.0, Lx, 1001)
-    y0 = -q * x0**2 / 2 / k + C1 * x0 + phi0
     torch.manual_seed(616)
-    model = Model(in_features=1, depths=depths, out_features=1)  # T = f(x)
-    model.set_act_func_type(act_func_type)
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
-    losses = []
-    X = torch.linspace(0.0, 1.0, N_train).reshape(-1, 1)
-    X.requires_grad = True
-    X_bc = torch.FloatTensor([[0.0], [1.0]])
-    phi_bc = torch.FloatTensor([[0.0], [1.0]])
-    for i in range(epochs):
-        phi_pred_bc = model(X_bc)
-        loss_bc = criterion(phi_pred_bc, phi_bc)
-        phi_pred = model(X)
-        phi_x_pred = torch.autograd.grad(
-            phi_pred,
-            X,
-            torch.ones_like(phi_pred),
-            create_graph=True,
-            retain_graph=True,
-        )[0]
-        phi_xx_pred = torch.autograd.grad(
-            phi_x_pred,
-            X,
-            torch.ones_like(phi_x_pred),
-            create_graph=True,
-            retain_graph=True,
-        )[0]
-        residual = phi_xx_pred + q * Lx**2 / (phi1 - phi0) / k
-        loss_ode = criterion(residual, torch.zeros_like(residual))
-        loss = loss_ode + loss_bc
-        losses.append(loss.item())
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        if (i + 1) % 100 == 0:
-            print(
-                f"Epoch = {i+1}   loss = {loss.item()} = {loss_bc.item()} (bc loss) + {loss_ode.item()} (ode loss)"
-            )
-    x = X * Lx
-    phi_pred = phi_pred * (phi1 - phi0) + phi0
-    plt.figure(figsize=(10, 8))
-    plt.subplot(2, 1, 1)
-    plt.plot(x0, y0, label="exact solution")
-    plt.plot(
-        x.detach().numpy(), phi_pred.detach().numpy(), label="PINN", linestyle="dashed"
+    model = PinnCondConv1D(
+        depths=depths,
+        Lx=1.0,
+        N_train=N_train,
+        kappa=1.0,
+        u=0,
+        q=q * Lx**2 / (phi1 - phi0) / k,
+        phi0=0.0,
+        phi1=1.0,
     )
+    model.train_pinn(lr=lr, epochs=epochs)
+    N_test = 313
+    C1 = (phi1 - phi0) / Lx + q / 2 / k * Lx
+    x0 = np.linspace(0.0, Lx, N_test)
+    y0 = -q * x0**2 / 2 / k + C1 * x0 + phi0
+    X = torch.linspace(0, 1.0, N_test).reshape(-1, 1)
+    phi_pred = model.net(X)
+    phi_pred = phi_pred * (phi1 - phi0) + phi0
+    plt.figure(figsize=(10, 4))
+    plt.plot(x0, y0, label="exact solution")
+    plt.plot(x0, phi_pred.detach().numpy(), label="PINN", linestyle="dashed")
     plt.xlabel("x")
     plt.ylabel("φ")
     plt.title(title)
     plt.legend()
-    plt.subplot(2, 1, 2)
-    plt.plot(losses)
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.yscale("log")
     plt.show()
 
 
@@ -345,8 +310,8 @@ def pinn_1d_cond_conv():
 
 if __name__ == "__main__":
     pinn_1d_cond()
-    # pinn_1d_cond_scaled()
-    # pinn_1d_cond_conv()
+    pinn_1d_cond_scaled()
+    pinn_1d_cond_conv()
 
 
 # py -m pinn.pinn_1d
