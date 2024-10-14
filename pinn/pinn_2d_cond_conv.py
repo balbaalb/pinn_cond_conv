@@ -132,7 +132,7 @@ class PinnCondConv2D:
         loss.backward()
         if (self.epoch) % 100 == 0:
             print(
-                f"Epoch = {self.epoch}, loss = {loss.item()} = {loss_pde.item()} + {loss_bc.item()}"
+                f"Epoch = {self.epoch}, loss = {loss.item()} = {loss_pde.item()} (PDE) + {loss_bc.item()} (BC)"
             )
         return loss
 
@@ -152,6 +152,12 @@ class PinnCondConv2D:
             line_search_fn="strong_wolfe",
         )
         self.optimizer.step(self.__loss_pinn)
+        if len(self.losses) > 0:
+            plt.plot(self.losses)
+            plt.xlabel("Epochs")
+            plt.ylabel("Loss")
+            plt.yscale("log")
+            plt.show()
 
 
 def pinn_2d_cond_conv() -> None:
@@ -213,10 +219,9 @@ def pinn_2d_cond_conv() -> None:
         ux=ux,
         uy=uy,
     )
-    file_name = "model_weights_cond_conv.pth"
+    file_name = "model_weights_2d_cond_conv.pth"
     model_file = THIS_PATH / file_name
     duration_mins = 0
-    losses = []
     if model_file.exists():
         model.net.load_state_dict(torch.load(model_file))
     else:
@@ -262,7 +267,7 @@ def pinn_2d_cond_conv() -> None:
         phi_diag_pred = model.net(XY_diag)
         phi_diag_pred = phi_diag_pred.detach().numpy()
     plt.figure(figsize=(12, 10))
-    plt.subplot(3, 1, 1)
+    plt.subplot(2, 1, 1)
     plt.title(title)
     plt.plot(np.linspace(0.0, 1.0, N_diag), phi_antidiag_exact, label="φ_exact")
     plt.plot(
@@ -275,7 +280,7 @@ def pinn_2d_cond_conv() -> None:
     plt.ylabel("φ")
     plt.legend()
 
-    plt.subplot(3, 1, 2)
+    plt.subplot(2, 1, 2)
     plt.plot(np.linspace(0.0, 1.0, N_diag), phi_diag_exact, label="φ_exact")
     plt.plot(
         np.linspace(0.0, 1.0, N_diag), phi_diag_pred, label="φ_PINN", linestyle="dashed"
@@ -283,13 +288,6 @@ def pinn_2d_cond_conv() -> None:
     plt.xlabel("non-dim distance along diagonal")
     plt.ylabel("φ")
     plt.legend()
-
-    if len(losses) > 0:
-        plt.subplot(3, 1, 3)
-        plt.plot(losses)
-        plt.xlabel("Epochs")
-        plt.ylabel("Loss")
-        plt.yscale("log")
     plt.show()
 
 
