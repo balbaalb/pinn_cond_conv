@@ -154,14 +154,15 @@ def pinn_1d_cond():
         y0 = -q * x0**2 / 2 / k + C1 * x0 + phi0
         x_test = torch.FloatTensor(x0).reshape(-1, 1)
         phi_pred = model.net(x_test)
-        plt.figure(figsize=(10, 4))
-        plt.plot(x0, y0, label="exact solution")
-        plt.plot(x0, phi_pred.detach().numpy(), label="PINN", linestyle="dashed")
-        plt.xlabel("x")
-        plt.ylabel("φ")
-        plt.title(title)
-        plt.legend()
-        plt.show()
+        phi_pred = phi_pred.detach().numpy()
+    plt.figure(figsize=(10, 10))
+    plt.plot(x0, y0, label="exact solution")
+    plt.plot(x0, phi_pred, label="PINN", linestyle="dashed")
+    plt.xlabel("x")
+    plt.ylabel("φ")
+    plt.title(title)
+    plt.legend()
+    plt.show()
 
 
 def pinn_1d_cond_scaled():
@@ -204,12 +205,14 @@ def pinn_1d_cond_scaled():
     C1 = (phi1 - phi0) / Lx + q / 2 / k * Lx
     x0 = np.linspace(0.0, Lx, N_test)
     y0 = -q * x0**2 / 2 / k + C1 * x0 + phi0
-    X = torch.linspace(0, 1.0, N_test).reshape(-1, 1)
-    phi_pred = model.net(X)
-    phi_pred = phi_pred * (phi1 - phi0) + phi0
-    plt.figure(figsize=(10, 4))
+    with torch.no_grad():
+        X = torch.linspace(0, 1.0, N_test).reshape(-1, 1)
+        phi_pred = model.net(X)
+        phi_pred = phi_pred.detach().numpy()
+        phi_pred = phi_pred * (phi1 - phi0) + phi0
+    plt.figure(figsize=(10, 10))
     plt.plot(x0, y0, label="exact solution")
-    plt.plot(x0, phi_pred.detach().numpy(), label="PINN", linestyle="dashed")
+    plt.plot(x0, phi_pred, label="PINN", linestyle="dashed")
     plt.xlabel("x")
     plt.ylabel("φ")
     plt.title(title)
@@ -237,7 +240,7 @@ def pinn_1d_cond_conv():
     title = "u dφ/dx = k d^2φ/dx^2, const k, φ(0) = φ0, φ(Lx) = φ1"
     title += f"\nφ0 = {phi0}, φ1 = {phi1}, Lx = {Lx}, Pe = {Pe}"
     # ===== PINN Parameters ==============
-    epochs = 10000
+    epochs = 100
     lr = 0.0005
     depths = [64, 64, 64]
     N_train = 1001
@@ -253,58 +256,31 @@ def pinn_1d_cond_conv():
     assert phi_exact(0) == phi0
     assert phi_exact(Lx) == phi1
 
-    x = torch.linspace(0, 1.0, N_train).reshape(-1, 1)
-    x.requires_grad = True
-    torch.manual_seed(616)
-    model = Model(in_features=1, depths=depths, out_features=1)  # T = f(x)
-    model.set_act_func_type(act_func_type)
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
-    losses = []
-    x_bc = torch.FloatTensor([[0.0], [1.0]])
-    phi_bc = torch.FloatTensor([[0.0], [1.0]])
-    for i in range(epochs):
-        phi_pred_bc = model.net(x_bc)
-        loss_bc = criterion(phi_pred_bc, phi_bc)
-        phi_pred = model(x)
-        phi_x_pred = torch.autograd.grad(
-            phi_pred, x, torch.ones_like(phi_pred), create_graph=True, retain_graph=True
-        )[0]
-        phi_xx_pred = torch.autograd.grad(
-            phi_x_pred,
-            x,
-            torch.ones_like(phi_x_pred),
-            create_graph=True,
-            retain_graph=True,
-        )[0]
-        residual = phi_xx_pred - phi_x_pred * Pe
-        loss_ode = criterion(residual, torch.zeros_like(residual))
-        loss = loss_ode + loss_bc
-        losses.append(loss.item())
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        if (i + 1) % 100 == 0:
-            print(
-                f"Epoch = {i+1}   loss = {loss.item()} = {loss_bc.item()} (bc loss) + {loss_ode.item()} (ode loss)"
-            )
-    x0 = x.detach().numpy() * Lx
-    y0 = phi_exact(x0)
-    phi_pred = phi_pred.detach().numpy()
-    phi_pred = phi_pred * (phi1 - phi0) + phi0
-    plt.figure(figsize=(10, 8))
-    plt.subplot(2, 1, 1)
+    model = PinnCondConv1D(
+        depths=depths,
+        Lx=Lx,
+        N_train=N_train,
+        kappa=1.0,
+        u=Pe,
+        q=0,
+        phi0=phi0,
+        phi1=phi1,
+    )
+    model.train_pinn(lr=lr, epochs=epochs)
+    N_test = 313
+    with torch.no_grad():
+        X = torch.linspace(0.0, Lx, N_test).reshape(-1, 1)
+        phi_pred = model.net(X)
+        x0 = X.detach().numpy()
+        y0 = phi_exact(x0)
+        phi_pred = phi_pred.detach().numpy()
+    plt.figure(figsize=(10, 10))
     plt.plot(x0, y0, label="Exact solution")
     plt.plot(x0, phi_pred, label="PINN", linestyle="dashed")
     plt.xlabel("x")
     plt.ylabel("φ")
     plt.title(title)
     plt.legend()
-    plt.subplot(2, 1, 2)
-    plt.plot(losses)
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.yscale("log")
     plt.show()
 
 
@@ -312,6 +288,5 @@ if __name__ == "__main__":
     pinn_1d_cond()
     pinn_1d_cond_scaled()
     pinn_1d_cond_conv()
-
 
 # py -m pinn.pinn_1d
