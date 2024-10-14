@@ -17,6 +17,9 @@ Scope:
 * Known and constant velocity field, $\vec{u}$
 * Constant diffusivity, $\kappa$
 
+## Inverse PINN (IPINN)
+In the inverse PINN example, the input to the model are the value of diffusivity, $\kappa$, and values of $\phi$ at different locations $(x , y)$. The model then finds the values of velocity field $(u_x, u_y)$ that generates the $\phi$ in equation (2). 
+
 ### Testing: 
 pytest
 
